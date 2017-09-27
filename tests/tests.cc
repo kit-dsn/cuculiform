@@ -13,14 +13,15 @@ TEST_CASE("create cuckoofilter", "[cuculiform]") {
 
   // chosen by a fair dice roll
   REQUIRE(filter.insert(4) == true);
-  REQUIRE(filter.size() == 1);
+  REQUIRE(filter.insert(8) == true);
+  REQUIRE(filter.size() == 2);
 
   REQUIRE(filter.contains(4) == true);
   REQUIRE(filter.contains(5) == false);
 
   REQUIRE(filter.erase(4) == true);
   REQUIRE(filter.erase(5) == false);
-  REQUIRE(filter.size() == 0);
+  REQUIRE(filter.size() == 1);
   REQUIRE(filter.contains(4) == false);
 
   REQUIRE(filter.insert(5) == true);
