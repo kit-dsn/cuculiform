@@ -4,6 +4,12 @@
 namespace cuculiform {
 
 struct Bucket {
+  explicit Bucket(size_t bucket_size, size_t fingerprint_size) {
+    auto empty_fingerprint = std::vector<uint8_t>(fingerprint_size, 0);
+    m_fingerprints =
+      std::vector<std::vector<uint8_t>>(bucket_size, empty_fingerprint);
+  }
+
   std::vector<std::vector<uint8_t>> m_fingerprints;
 
   bool insert(const std::vector<uint8_t> fingerprint);
@@ -57,11 +63,8 @@ public:
         m_fingerprint_size(2) {
     // round up to get required number of buckets
     size_t num_buckets = (m_capacity + m_bucket_size - 1) / m_bucket_size;
-    auto empty_fingerprint = std::vector<uint8_t>(m_fingerprint_size, 0);
-    Bucket null_bucket;
-    null_bucket.m_fingerprints =
-      std::vector<std::vector<uint8_t>>(m_bucket_size, empty_fingerprint);
-    m_buckets = std::vector<Bucket>(num_buckets, null_bucket);
+    Bucket empty_bucket{m_bucket_size, m_fingerprint_size};
+    m_buckets = std::vector<Bucket>(num_buckets, empty_bucket);
   }
 
   bool insert(const uint64_t item);
