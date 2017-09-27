@@ -28,4 +28,12 @@ TEST_CASE("create cuckoofilter", "[cuculiform]") {
   filter.clear();
   REQUIRE(filter.size() == 0);
   REQUIRE(filter.contains(5) == false);
+
+  REQUIRE(filter.contains(0) == false);
+  REQUIRE(filter.insert(0) == true);
+  REQUIRE(filter.contains(0) == true);
+
+  for (uint64_t i = 0; i < 100; i++) {
+    REQUIRE(filter.insert(i) == true);
+  }
 }
