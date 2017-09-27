@@ -4,7 +4,7 @@
 namespace cuculiform {
 
 struct Bucket {
-  std::vector<std::vector<uint8_t>> fingerprints;
+  std::vector<std::vector<uint8_t>> m_fingerprints;
 
   bool insert(const std::vector<uint8_t> fingerprint);
   bool contains(const std::vector<uint8_t> fingerprint) const;
@@ -15,8 +15,8 @@ struct Bucket {
 bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
   auto empty_fingerprint = std::vector<uint8_t>(fingerprint.size(), 0);
   auto position =
-    std::find(fingerprints.begin(), fingerprints.end(), empty_fingerprint);
-  bool has_empty_position = position != fingerprints.end();
+    std::find(m_fingerprints.begin(), m_fingerprints.end(), empty_fingerprint);
+  bool has_empty_position = position != m_fingerprints.end();
   if (has_empty_position) {
     // found empty position, insert
     std::copy(fingerprint.begin(), fingerprint.end(), position->begin());
@@ -26,14 +26,14 @@ bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
 
 bool Bucket::contains(const std::vector<uint8_t> fingerprint) const {
   auto position =
-    std::find(fingerprints.begin(), fingerprints.end(), fingerprint);
-  return position != fingerprints.end();
+    std::find(m_fingerprints.begin(), m_fingerprints.end(), fingerprint);
+  return position != m_fingerprints.end();
 }
 
 bool Bucket::erase(const std::vector<uint8_t> fingerprint) {
   auto position =
-    std::find(fingerprints.begin(), fingerprints.end(), fingerprint);
-  bool has_fingerprint = position != fingerprints.end();
+    std::find(m_fingerprints.begin(), m_fingerprints.end(), fingerprint);
+  bool has_fingerprint = position != m_fingerprints.end();
   if (has_fingerprint) {
     // found that fingerprint, delete it.
     std::fill(position->begin(), position->end(), 0);
@@ -42,7 +42,7 @@ bool Bucket::erase(const std::vector<uint8_t> fingerprint) {
 }
 
 void Bucket::clear() {
-  std::for_each(fingerprints.begin(), fingerprints.end(),
+  std::for_each(m_fingerprints.begin(), m_fingerprints.end(),
                 [](std::vector<uint8_t>& fingerprint) {
                   std::fill(fingerprint.begin(), fingerprint.end(), 0);
                 });
@@ -59,7 +59,7 @@ public:
     size_t num_buckets = (m_capacity + m_bucket_size - 1) / m_bucket_size;
     auto empty_fingerprint = std::vector<uint8_t>(m_fingerprint_size, 0);
     Bucket null_bucket;
-    null_bucket.fingerprints =
+    null_bucket.m_fingerprints =
       std::vector<std::vector<uint8_t>>(m_bucket_size, empty_fingerprint);
     m_buckets = std::vector<Bucket>(num_buckets, null_bucket);
   }
