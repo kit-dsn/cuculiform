@@ -2,9 +2,12 @@
 #include "catch/catch.hpp"
 #include "cuculiform.h"
 
+#include <functional>
+#include <string>
+
 TEST_CASE("create cuckoofilter", "[cuculiform]") {
   size_t capacity = 1024;
-  cuculiform::CuckooFilter filter{capacity};
+  cuculiform::CuckooFilter<uint64_t> filter{capacity};
 
   REQUIRE(filter.size() == 0);
   REQUIRE(filter.capacity() == capacity);
@@ -29,11 +32,10 @@ TEST_CASE("create cuckoofilter", "[cuculiform]") {
   REQUIRE(filter.size() == 0);
   REQUIRE(filter.contains(5) == false);
 
-  REQUIRE(filter.contains(0) == false);
-  REQUIRE(filter.insert(0) == true);
-  REQUIRE(filter.contains(0) == true);
-
-  for (uint64_t i = 0; i < 100; i++) {
-    REQUIRE(filter.insert(i) == true);
-  }
+  cuculiform::CuckooFilter<std::string> stringfilter{capacity};
+  REQUIRE(stringfilter.insert("helloworld") == true);
+  REQUIRE(stringfilter.contains("helloworld") == true);
+  REQUIRE(stringfilter.contains("1337") == false);
+  REQUIRE(stringfilter.erase("helloworld") == true);
+  REQUIRE(stringfilter.contains("helloworld") == false);
 }
