@@ -14,33 +14,31 @@ struct Bucket {
 
 bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
   auto empty_fingerprint = std::vector<uint8_t>(fingerprint.size(), 0);
-  auto result =
+  auto position =
     std::find(fingerprints.begin(), fingerprints.end(), empty_fingerprint);
-  if (result != fingerprints.end()) {
-    // found an empty spot for a fingerprint. insert!
-    std::copy(fingerprint.begin(), fingerprint.end(), result->begin());
-    return true;
-  } else {
-    return false;
+  bool has_empty_position = position != fingerprints.end();
+  if (has_empty_position) {
+    // found empty position, insert
+    std::copy(fingerprint.begin(), fingerprint.end(), position->begin());
   }
+  return has_empty_position;
 }
 
 bool Bucket::contains(const std::vector<uint8_t> fingerprint) const {
-  auto result =
+  auto position =
     std::find(fingerprints.begin(), fingerprints.end(), fingerprint);
-  return result != fingerprints.end();
+  return position != fingerprints.end();
 }
 
 bool Bucket::erase(const std::vector<uint8_t> fingerprint) {
-  auto result =
+  auto position =
     std::find(fingerprints.begin(), fingerprints.end(), fingerprint);
-  if (result != fingerprints.end()) {
+  bool has_fingerprint = position != fingerprints.end();
+  if (has_fingerprint) {
     // found that fingerprint, delete it.
-    std::fill(result->begin(), result->end(), 0);
-    return true;
-  } else {
-    return false;
+    std::fill(position->begin(), position->end(), 0);
   }
+  return has_fingerprint;
 }
 
 void Bucket::clear() {
