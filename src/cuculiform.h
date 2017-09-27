@@ -24,7 +24,7 @@ bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
     std::find(m_fingerprints.begin(), m_fingerprints.end(), empty_fingerprint);
   bool has_empty_position = position != m_fingerprints.end();
   if (has_empty_position) {
-    // found empty position, insert
+    // found empty position, insert!
     std::copy(fingerprint.begin(), fingerprint.end(), position->begin());
   }
   return has_empty_position;
@@ -54,6 +54,7 @@ void Bucket::clear() {
                 });
 }
 
+template<typename T>
 class CuckooFilter {
 public:
   explicit CuckooFilter(size_t capacity)
@@ -67,9 +68,9 @@ public:
     m_buckets = std::vector<Bucket>(num_buckets, empty_bucket);
   }
 
-  bool insert(const uint64_t item);
-  bool contains(const uint64_t item) const;
-  bool erase(const uint64_t item);
+  bool insert(const T item);
+  bool contains(const T item) const;
+  bool erase(const T item);
   void clear();
   size_t size() const;
   size_t capacity() const;
@@ -82,9 +83,15 @@ private:
   const size_t m_fingerprint_size;
 };
 
-bool CuckooFilter::insert(const uint64_t item) {
-  // H = id ;)
-  const uint64_t hash = item;
+template<typename T>
+bool CuckooFilter<T>::insert(const T item) {
+  // use std::hash to normalize any type to a size_t.
+  // Note that it doesn't necessarily produce distributed hashes,
+  // i.e. for uints, it might just be the identity function.
+  std::hash<T> hash_fn;
+  // std::hash returns size_t values, we expect this to be 64bit for the next part
+  assert(sizeof(size_t) == 8);
+  const uint64_t hash = hash_fn(item);
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
@@ -112,9 +119,12 @@ bool CuckooFilter::insert(const uint64_t item) {
   return inserted;
 }
 
-bool CuckooFilter::contains(const uint64_t item) const {
-  // H = id ;)
-  const uint64_t hash = item;
+template<typename T>
+bool CuckooFilter<T>::contains(const T item) const {
+  std::hash<T> hash_fn;
+  // std::hash returns size_t values, we expect this to be 64bit for the next part
+  assert(sizeof(size_t) == 8);
+  const uint64_t hash = hash_fn(item);
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
@@ -138,9 +148,12 @@ bool CuckooFilter::contains(const uint64_t item) const {
   return contained;
 }
 
-bool CuckooFilter::erase(const uint64_t item) {
-  // H = id ;)
-  const uint64_t hash = item;
+template<typename T>
+bool CuckooFilter<T>::erase(const T item) {
+  std::hash<T> hash_fn;
+  // std::hash returns size_t values, we expect this to be 64bit for the next part
+  assert(sizeof(size_t) == 8);
+  const uint64_t hash = hash_fn(item);
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
@@ -166,17 +179,20 @@ bool CuckooFilter::erase(const uint64_t item) {
   return erased;
 }
 
-void CuckooFilter::clear() {
+template<typename T>
+void CuckooFilter<T>::clear() {
   std::for_each(m_buckets.begin(), m_buckets.end(),
                 [](Bucket& bucket) { bucket.clear(); });
   m_size = 0;
 }
 
-size_t CuckooFilter::size() const {
+template<typename T>
+size_t CuckooFilter<T>::size() const {
   return m_size;
 }
 
-size_t CuckooFilter::capacity() const {
+template<typename T>
+size_t CuckooFilter<T>::capacity() const {
   return m_capacity;
 }
 
