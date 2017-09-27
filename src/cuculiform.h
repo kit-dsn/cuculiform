@@ -5,7 +5,50 @@ namespace cuculiform {
 
 struct Bucket {
   std::vector<std::vector<uint8_t>> fingerprints;
+
+  bool insert(const std::vector<uint8_t> fingerprint);
+  bool contains(const std::vector<uint8_t> fingerprint) const;
+  bool erase(const std::vector<uint8_t> fingerprint);
+  void clear();
 };
+
+bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
+  auto empty_fingerprint = std::vector<uint8_t>(fingerprint.size(), 0);
+  auto result =
+    std::find(fingerprints.begin(), fingerprints.end(), empty_fingerprint);
+  if (result != fingerprints.end()) {
+    // found an empty spot for a fingerprint. insert!
+    std::copy(fingerprint.begin(), fingerprint.end(), result->begin());
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool Bucket::contains(const std::vector<uint8_t> fingerprint) const {
+  auto result =
+    std::find(fingerprints.begin(), fingerprints.end(), fingerprint);
+  return result != fingerprints.end();
+}
+
+bool Bucket::erase(const std::vector<uint8_t> fingerprint) {
+  auto result =
+    std::find(fingerprints.begin(), fingerprints.end(), fingerprint);
+  if (result != fingerprints.end()) {
+    // found that fingerprint, delete it.
+    std::fill(result->begin(), result->end(), 0);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+void Bucket::clear() {
+  std::for_each(fingerprints.begin(), fingerprints.end(),
+                [](std::vector<uint8_t>& fingerprint) {
+                  std::fill(fingerprint.begin(), fingerprint.end(), 0);
+                });
+}
 
 class CuckooFilter {
 public:
@@ -18,7 +61,8 @@ public:
     size_t num_buckets = (m_capacity + m_bucket_size - 1) / m_bucket_size;
     auto empty_fingerprint = std::vector<uint8_t>(m_fingerprint_size, 0);
     Bucket null_bucket;
-    null_bucket.fingerprints = std::vector<std::vector<uint8_t>>(m_bucket_size, empty_fingerprint);
+    null_bucket.fingerprints =
+      std::vector<std::vector<uint8_t>>(m_bucket_size, empty_fingerprint);
     m_buckets = std::vector<Bucket>(num_buckets, null_bucket);
   }
 
@@ -48,10 +92,9 @@ bool CuckooFilter::insert(const uint64_t item) {
   // them from empty bucket slots
   assert(lower_hash != 0);
 
-  std::vector<uint8_t> fingerprint_hash_bytes(m_fingerprint_size);
+  std::vector<uint8_t> fingerprint(m_fingerprint_size);
   for (size_t i = 0; i < m_fingerprint_size; i++) {
-    fingerprint_hash_bytes[i] =
-      static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
+    fingerprint[i] = static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
   }
 
   size_t index = upper_hash;
@@ -59,30 +102,13 @@ bool CuckooFilter::insert(const uint64_t item) {
   size_t alt_index = index ^ lower_hash;
 
   // TODO: rebucketing
-  auto empty_fingerprint = std::vector<uint8_t>(m_fingerprint_size, 0);
-  auto& bucket = m_buckets[index % m_buckets.size()];
-  auto result = std::find(bucket.fingerprints.begin(), bucket.fingerprints.end(), empty_fingerprint);
-  if (result != bucket.fingerprints.end()) {
-    // found an empty spot for a fingerprint. insert!
-    std::copy(fingerprint_hash_bytes.begin(), fingerprint_hash_bytes.end(),
-              result->begin());
+  bool inserted =
+    m_buckets[index % m_buckets.size()].insert(fingerprint)
+    || m_buckets[alt_index % m_buckets.size()].insert(fingerprint);
+  if (inserted) {
     m_size++;
-    return true;
   }
-  else {
-    auto& bucket = m_buckets[alt_index % m_buckets.size()];
-    auto result = std::find(bucket.fingerprints.begin(), bucket.fingerprints.end(), empty_fingerprint);
-    if (result != bucket.fingerprints.end()) {
-      // found an empty spot for a fingerprint. insert!
-      std::copy(fingerprint_hash_bytes.begin(), fingerprint_hash_bytes.end(),
-                result->begin());
-      m_size++;
-      return true;
-    }
-    else {
-      return false;
-    }
-  }
+  return inserted;
 }
 
 bool CuckooFilter::contains(const uint64_t item) const {
@@ -96,26 +122,19 @@ bool CuckooFilter::contains(const uint64_t item) const {
   // them from empty bucket slots
   assert(lower_hash != 0);
 
-  std::vector<uint8_t> fingerprint_hash_bytes(m_fingerprint_size);
+  std::vector<uint8_t> fingerprint(m_fingerprint_size);
   for (size_t i = 0; i < m_fingerprint_size; i++) {
-    fingerprint_hash_bytes[i] =
-      static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
+    fingerprint[i] = static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
   }
 
   size_t index = upper_hash;
   // TODO: alt_index = index ^ H(lower_hash) für eine Art H
   size_t alt_index = index ^ lower_hash;
 
-  auto& bucket = m_buckets[index % m_buckets.size()];
-  auto result = std::find(bucket.fingerprints.begin(), bucket.fingerprints.end(), fingerprint_hash_bytes);
-  if (result != bucket.fingerprints.end()) {
-    return true;
-  }
-  else {
-    auto& bucket = m_buckets[alt_index % m_buckets.size()];
-    auto result = std::find(bucket.fingerprints.begin(), bucket.fingerprints.end(), fingerprint_hash_bytes);
-    return result != bucket.fingerprints.end();
-  }
+  bool contained =
+    m_buckets[index % m_buckets.size()].contains(fingerprint)
+    || m_buckets[alt_index % m_buckets.size()].contains(fingerprint);
+  return contained;
 }
 
 bool CuckooFilter::erase(const uint64_t item) {
@@ -129,45 +148,26 @@ bool CuckooFilter::erase(const uint64_t item) {
   // them from empty bucket slots
   assert(lower_hash != 0);
 
-  std::vector<uint8_t> fingerprint_hash_bytes(m_fingerprint_size);
+  std::vector<uint8_t> fingerprint(m_fingerprint_size);
   for (size_t i = 0; i < m_fingerprint_size; i++) {
-    fingerprint_hash_bytes[i] =
-      static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
+    fingerprint[i] = static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
   }
 
   size_t index = upper_hash;
   // TODO: alt_index = index ^ H(lower_hash) für eine Art H
   size_t alt_index = index ^ lower_hash;
 
-  auto& bucket = m_buckets[index % m_buckets.size()];
-  auto result = std::find(bucket.fingerprints.begin(), bucket.fingerprints.end(), fingerprint_hash_bytes);
-  if (result != bucket.fingerprints.end()) {
-    // found that fingerprint, delete it.
-    std::fill(result->begin(), result->end(), 0);
+  bool erased = m_buckets[index % m_buckets.size()].erase(fingerprint)
+                || m_buckets[alt_index % m_buckets.size()].erase(fingerprint);
+  if (erased) {
     m_size--;
-    return true;
   }
-  else {
-    auto& bucket = m_buckets[alt_index % m_buckets.size()];
-    auto result = std::find(bucket.fingerprints.begin(), bucket.fingerprints.end(), fingerprint_hash_bytes);
-    if (result != bucket.fingerprints.end()) {
-      // found that fingerprint, delete it.
-      std::fill(result->begin(), result->end(), 0);
-      m_size--;
-      return true;
-    }
-    else {
-      return false;
-    }
-  }
+  return erased;
 }
 
 void CuckooFilter::clear() {
-  for (auto& bucket : m_buckets) {
-    for (auto& fingerprint : bucket.fingerprints) {
-      std::fill(fingerprint.begin(), fingerprint.end(), 0);
-    }
-  }
+  std::for_each(m_buckets.begin(), m_buckets.end(),
+                [](Bucket& bucket) { bucket.clear(); });
   m_size = 0;
 }
 
