@@ -54,7 +54,7 @@ void Bucket::clear() {
                 });
 }
 
-template<typename T>
+template <typename T>
 class CuckooFilter {
 public:
   explicit CuckooFilter(size_t capacity)
@@ -83,13 +83,14 @@ private:
   const size_t m_fingerprint_size;
 };
 
-template<typename T>
+template <typename T>
 bool CuckooFilter<T>::insert(const T item) {
   // use std::hash to normalize any type to a size_t.
   // Note that it doesn't necessarily produce distributed hashes,
   // i.e. for uints, it might just be the identity function.
   std::hash<T> hash_fn;
-  // std::hash returns size_t values, we expect this to be 64bit for the next part
+  // std::hash returns size_t values, we expect this to be 64bit
+  // for the next part
   assert(sizeof(size_t) == 8);
   const uint64_t hash = hash_fn(item);
 
@@ -119,10 +120,11 @@ bool CuckooFilter<T>::insert(const T item) {
   return inserted;
 }
 
-template<typename T>
+template <typename T>
 bool CuckooFilter<T>::contains(const T item) const {
   std::hash<T> hash_fn;
-  // std::hash returns size_t values, we expect this to be 64bit for the next part
+  // std::hash returns size_t values, we expect this to be 64bit
+  // for the next part
   assert(sizeof(size_t) == 8);
   const uint64_t hash = hash_fn(item);
 
@@ -148,10 +150,11 @@ bool CuckooFilter<T>::contains(const T item) const {
   return contained;
 }
 
-template<typename T>
+template <typename T>
 bool CuckooFilter<T>::erase(const T item) {
   std::hash<T> hash_fn;
-  // std::hash returns size_t values, we expect this to be 64bit for the next part
+  // std::hash returns size_t values, we expect this to be 64bit
+  // for the next part
   assert(sizeof(size_t) == 8);
   const uint64_t hash = hash_fn(item);
 
@@ -179,19 +182,19 @@ bool CuckooFilter<T>::erase(const T item) {
   return erased;
 }
 
-template<typename T>
+template <typename T>
 void CuckooFilter<T>::clear() {
   std::for_each(m_buckets.begin(), m_buckets.end(),
                 [](Bucket& bucket) { bucket.clear(); });
   m_size = 0;
 }
 
-template<typename T>
+template <typename T>
 size_t CuckooFilter<T>::size() const {
   return m_size;
 }
 
-template<typename T>
+template <typename T>
 size_t CuckooFilter<T>::capacity() const {
   return m_capacity;
 }
