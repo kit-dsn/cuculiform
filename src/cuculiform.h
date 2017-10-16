@@ -1,7 +1,23 @@
 #pragma once
 #include <assert.h>
+#include "highwayhash/highwayhash.h"
+
+using namespace highwayhash;
 
 namespace cuculiform {
+
+uint64_t strong_hash_fn(size_t value) {
+  char bytes[sizeof(value)];
+  for (size_t i = 0; i < sizeof(value); i++) {
+    bytes[i] = static_cast<uint8_t>((value >> i * 8) & 0xFF);
+  }
+
+  const HHKey key HH_ALIGNAS(32) = {1, 2, 3, 4};
+  HHResult64 result;
+  HHStateT<HH_TARGET> state(key);
+  HighwayHashT(&state, bytes, sizeof(bytes), &result);
+  return static_cast<uint64_t>(result);
+}
 
 struct Bucket {
   explicit Bucket(size_t bucket_size, size_t fingerprint_size) {
@@ -89,10 +105,7 @@ bool CuckooFilter<T>::insert(const T item) {
   // Note that it doesn't necessarily produce distributed hashes,
   // i.e. for uints, it might just be the identity function.
   std::hash<T> hash_fn;
-  // std::hash returns size_t values, we expect this to be 64bit
-  // for the next part
-  assert(sizeof(size_t) == 8);
-  const uint64_t hash = hash_fn(item);
+  const uint64_t hash = strong_hash_fn(hash_fn(item));
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
@@ -107,8 +120,8 @@ bool CuckooFilter<T>::insert(const T item) {
   }
 
   size_t index = upper_hash;
-  // TODO: alt_index = index ^ H(lower_hash) für eine Art H
-  size_t alt_index = index ^ lower_hash;
+  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash));
+  assert(index == alt_index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
 
   // TODO: rebucketing
   bool inserted =
@@ -123,10 +136,7 @@ bool CuckooFilter<T>::insert(const T item) {
 template <typename T>
 bool CuckooFilter<T>::contains(const T item) const {
   std::hash<T> hash_fn;
-  // std::hash returns size_t values, we expect this to be 64bit
-  // for the next part
-  assert(sizeof(size_t) == 8);
-  const uint64_t hash = hash_fn(item);
+  const uint64_t hash = strong_hash_fn(hash_fn(item));
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
@@ -141,8 +151,8 @@ bool CuckooFilter<T>::contains(const T item) const {
   }
 
   size_t index = upper_hash;
-  // TODO: alt_index = index ^ H(lower_hash) für eine Art H
-  size_t alt_index = index ^ lower_hash;
+  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash));
+  assert(index == alt_index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
 
   bool contained =
     m_buckets[index % m_buckets.size()].contains(fingerprint)
@@ -153,10 +163,7 @@ bool CuckooFilter<T>::contains(const T item) const {
 template <typename T>
 bool CuckooFilter<T>::erase(const T item) {
   std::hash<T> hash_fn;
-  // std::hash returns size_t values, we expect this to be 64bit
-  // for the next part
-  assert(sizeof(size_t) == 8);
-  const uint64_t hash = hash_fn(item);
+  const uint64_t hash = strong_hash_fn(hash_fn(item));
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
@@ -171,8 +178,8 @@ bool CuckooFilter<T>::erase(const T item) {
   }
 
   size_t index = upper_hash;
-  // TODO: alt_index = index ^ H(lower_hash) für eine Art H
-  size_t alt_index = index ^ lower_hash;
+  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash));
+  assert(index == alt_index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
 
   bool erased = m_buckets[index % m_buckets.size()].erase(fingerprint)
                 || m_buckets[alt_index % m_buckets.size()].erase(fingerprint);
