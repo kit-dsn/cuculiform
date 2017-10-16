@@ -105,14 +105,15 @@ bool CuckooFilter<T>::insert(const T item) {
   // Note that it doesn't necessarily produce distributed hashes,
   // i.e. for uints, it might just be the identity function.
   std::hash<T> hash_fn;
-  const uint64_t hash = strong_hash_fn(hash_fn(item));
+  uint64_t hash = strong_hash_fn(hash_fn(item));
+  if (hash == 0) {
+    hash = 1;
+    std::cerr << "Hash Collision with 0. This is probably nothing to worry about." << std::endl;
+  }
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
 
-  // TODO: devise method to avoid hashes that are ==0 to be able to separate
-  // them from empty bucket slots
-  assert(lower_hash != 0);
 
   std::vector<uint8_t> fingerprint(m_fingerprint_size);
   for (size_t i = 0; i < m_fingerprint_size; i++) {
@@ -136,14 +137,14 @@ bool CuckooFilter<T>::insert(const T item) {
 template <typename T>
 bool CuckooFilter<T>::contains(const T item) const {
   std::hash<T> hash_fn;
-  const uint64_t hash = strong_hash_fn(hash_fn(item));
+  uint64_t hash = strong_hash_fn(hash_fn(item));
+  if (hash == 0) {
+    hash = 1;
+    std::cerr << "Hash Collision with 0. This is probably nothing to worry about." << std::endl;
+  }
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
-
-  // TODO: devise method to avoid hashes that are == 0 to be able to separate
-  // them from empty bucket slots
-  assert(lower_hash != 0);
 
   std::vector<uint8_t> fingerprint(m_fingerprint_size);
   for (size_t i = 0; i < m_fingerprint_size; i++) {
@@ -163,14 +164,14 @@ bool CuckooFilter<T>::contains(const T item) const {
 template <typename T>
 bool CuckooFilter<T>::erase(const T item) {
   std::hash<T> hash_fn;
-  const uint64_t hash = strong_hash_fn(hash_fn(item));
+  uint64_t hash = strong_hash_fn(hash_fn(item));
+  if (hash == 0) {
+    hash = 1;
+    std::cerr << "Hash Collision with 0. This is probably nothing to worry about." << std::endl;
+  }
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
-
-  // TODO: devise method to avoid hashes that are ==0 to be able to separate
-  // them from empty bucket slots
-  assert(lower_hash != 0);
 
   std::vector<uint8_t> fingerprint(m_fingerprint_size);
   for (size_t i = 0; i < m_fingerprint_size; i++) {
