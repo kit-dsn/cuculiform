@@ -37,13 +37,16 @@ TEST_CASE("create cuckoofilter", "[cuculiform]") {
   REQUIRE(filter.contains(0) == false);
   REQUIRE(filter.insert(0) == true);
   REQUIRE(filter.contains(0) == true);
+}
 
-  cuculiform::CuckooFilter<std::string> stringfilter{capacity};
-  REQUIRE(stringfilter.insert("helloworld") == true);
-  REQUIRE(stringfilter.contains("helloworld") == true);
-  REQUIRE(stringfilter.contains("1337") == false);
-  REQUIRE(stringfilter.erase("helloworld") == true);
-  REQUIRE(stringfilter.contains("helloworld") == false);
+TEST_CASE("string cuckoofilter", "[cuculiform]") {
+  size_t capacity = 1024;
+  cuculiform::CuckooFilter<std::string> filter{capacity};
+  REQUIRE(filter.insert("helloworld") == true);
+  REQUIRE(filter.contains("helloworld") == true);
+  REQUIRE(filter.contains("1337") == false);
+  REQUIRE(filter.erase("helloworld") == true);
+  REQUIRE(filter.contains("helloworld") == false);
 }
 
 TEST_CASE("false positive test", "[cuculiform]") {
