@@ -1,14 +1,15 @@
 #pragma once
-#include <assert.h>
 #include "highwayhash/highwayhash.h"
+#include <assert.h>
 
 using namespace highwayhash;
 
 namespace cuculiform {
 
-// Change the implementation of this function signature to test other hash functions, e.g. SipHasher included in the
-// highwayhash library.
-// TODO: Make it easy to swap in a choice from several implementations, e.g. via templates
+// Change the implementation of this function signature to test other hash
+// functions, e.g. SipHasher included in the highwayhash library.
+// TODO: Make it easy to swap in a choice from several implementations, e.g. via
+// templates
 uint64_t strong_hash_fn(size_t value) {
   char bytes[sizeof(value)];
   for (size_t i = 0; i < sizeof(value); i++) {
@@ -23,7 +24,8 @@ uint64_t strong_hash_fn(size_t value) {
 }
 
 template <typename T>
-std::tuple<size_t, size_t, std::vector<uint8_t>> indexes_and_fingerprint_for(const T item, const size_t fingerprint_size) {
+std::tuple<size_t, size_t, std::vector<uint8_t>>
+indexes_and_fingerprint_for(const T item, const size_t fingerprint_size) {
   // use std::hash to normalize any type to a size_t.
   // Note that it doesn't necessarily produce distributed hashes,
   // i.e. for uints, it might just be the identity function.
@@ -32,12 +34,13 @@ std::tuple<size_t, size_t, std::vector<uint8_t>> indexes_and_fingerprint_for(con
   uint64_t hash = strong_hash_fn(weak_hash_fn(item));
   if (hash == 0) {
     hash = 1;
-    std::cerr << "Hash Collision with 0. This is probably nothing to worry about." << std::endl;
+    std::cerr
+      << "Hash Collision with 0. This is probably nothing to worry about."
+      << std::endl;
   }
 
   const uint32_t lower_hash = static_cast<uint32_t>(hash);
   const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
-
 
   std::vector<uint8_t> fingerprint(fingerprint_size);
   for (size_t i = 0; i < fingerprint_size; i++) {
@@ -46,11 +49,11 @@ std::tuple<size_t, size_t, std::vector<uint8_t>> indexes_and_fingerprint_for(con
 
   size_t index = upper_hash;
   size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash));
-  assert(index == alt_index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
+  assert(index == alt_index
+         ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
 
   return std::make_tuple(index, alt_index, fingerprint);
 }
-
 
 struct Bucket {
   explicit Bucket(size_t bucket_size, size_t fingerprint_size) {
@@ -73,7 +76,8 @@ bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
     std::find(m_fingerprints.begin(), m_fingerprints.end(), empty_fingerprint);
   bool has_empty_position = position != m_fingerprints.end();
   if (has_empty_position) {
-    // found empty position, insert by bytewise-copying the fingerprint into that slot
+    // found empty position, insert by bytewise-copying the fingerprint into
+    // that slot
     std::copy(fingerprint.begin(), fingerprint.end(), position->begin());
   }
   return has_empty_position;
@@ -137,7 +141,8 @@ bool CuckooFilter<T>::insert(const T item) {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
-  std::tie(index, alt_index, fingerprint) = indexes_and_fingerprint_for(item, m_fingerprint_size);
+  std::tie(index, alt_index, fingerprint) =
+    indexes_and_fingerprint_for(item, m_fingerprint_size);
 
   // TODO: rebucketing
   bool inserted =
@@ -154,7 +159,8 @@ bool CuckooFilter<T>::contains(const T item) const {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
-  std::tie(index, alt_index, fingerprint) = indexes_and_fingerprint_for(item, m_fingerprint_size);
+  std::tie(index, alt_index, fingerprint) =
+    indexes_and_fingerprint_for(item, m_fingerprint_size);
 
   bool contained =
     m_buckets[index % m_buckets.size()].contains(fingerprint)
@@ -167,7 +173,8 @@ bool CuckooFilter<T>::erase(const T item) {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
-  std::tie(index, alt_index, fingerprint) = indexes_and_fingerprint_for(item, m_fingerprint_size);
+  std::tie(index, alt_index, fingerprint) =
+    indexes_and_fingerprint_for(item, m_fingerprint_size);
 
   bool erased = m_buckets[index % m_buckets.size()].erase(fingerprint)
                 || m_buckets[alt_index % m_buckets.size()].erase(fingerprint);
