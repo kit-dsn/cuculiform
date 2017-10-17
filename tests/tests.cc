@@ -64,25 +64,30 @@ TEST_CASE("false positive test", "[cuculiform]") {
   }
 
   // The range 0..num_inserted are all known to be in the filter.
-  // The filter shouldn't return false negatives, and therefore they should all be contained.
+  // The filter shouldn't return false negatives, and therefore they should all
+  // be contained.
   for (size_t i = 0; i < num_inserted; i++) {
     REQUIRE(filter.contains(i));
   }
 
-  // The range total_items..(2 * total_items) are all known *not* to be in the filter.
-  // Every element for which the filter claims that it is contained is therefore a false positive.
+  // The range total_items..(2 * total_items) are all known *not* to be in the
+  // filter. Every element for which the filter claims that it is contained is
+  // therefore a false positive.
   size_t false_queries = 0;
   for (size_t i = total_items; i < 2 * total_items; i++) {
     if (filter.contains(i)) {
       false_queries += 1;
     }
   }
-  double false_positive_rate = static_cast<double>(false_queries) / static_cast<double>(total_items);
+  double false_positive_rate =
+    static_cast<double>(false_queries) / static_cast<double>(total_items);
 
   // TODO: REQUIRE a minimum number or ratio of inserted events
   std::cout << "elements inserted: " << num_inserted << std::endl;
   // TODO: REQUIRE a memory usage
-  std::cout << "false positive rate: " << false_positive_rate << "%" << std::endl;
-  // ratio should be around 0.024, round up to 0.03 to accomodate for random fluctuation
+  std::cout << "false positive rate: " << false_positive_rate << "%"
+            << std::endl;
+  // ratio should be around 0.024, round up to 0.03 to accomodate for random
+  // fluctuation
   REQUIRE(false_positive_rate < 0.03);
 }
