@@ -19,6 +19,36 @@ uint64_t strong_hash_fn(size_t value) {
   return static_cast<uint64_t>(result);
 }
 
+template <typename T>
+std::tuple<size_t, size_t, std::vector<uint8_t>> indexes_and_fingerprint_for(const T item, const size_t fingerprint_size) {
+  // use std::hash to normalize any type to a size_t.
+  // Note that it doesn't necessarily produce distributed hashes,
+  // i.e. for uints, it might just be the identity function.
+  // To have an equally distributed hash, we then apply a strong hash function.
+  std::hash<T> weak_hash_fn;
+  uint64_t hash = strong_hash_fn(weak_hash_fn(item));
+  if (hash == 0) {
+    hash = 1;
+    std::cerr << "Hash Collision with 0. This is probably nothing to worry about." << std::endl;
+  }
+
+  const uint32_t lower_hash = static_cast<uint32_t>(hash);
+  const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
+
+
+  std::vector<uint8_t> fingerprint(fingerprint_size);
+  for (size_t i = 0; i < fingerprint_size; i++) {
+    fingerprint[i] = static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
+  }
+
+  size_t index = upper_hash;
+  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash));
+  assert(index == alt_index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
+
+  return std::make_tuple(index, alt_index, fingerprint);
+}
+
+
 struct Bucket {
   explicit Bucket(size_t bucket_size, size_t fingerprint_size) {
     auto empty_fingerprint = std::vector<uint8_t>(fingerprint_size, 0);
@@ -101,28 +131,10 @@ private:
 
 template <typename T>
 bool CuckooFilter<T>::insert(const T item) {
-  // use std::hash to normalize any type to a size_t.
-  // Note that it doesn't necessarily produce distributed hashes,
-  // i.e. for uints, it might just be the identity function.
-  std::hash<T> hash_fn;
-  uint64_t hash = strong_hash_fn(hash_fn(item));
-  if (hash == 0) {
-    hash = 1;
-    std::cerr << "Hash Collision with 0. This is probably nothing to worry about." << std::endl;
-  }
-
-  const uint32_t lower_hash = static_cast<uint32_t>(hash);
-  const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
-
-
-  std::vector<uint8_t> fingerprint(m_fingerprint_size);
-  for (size_t i = 0; i < m_fingerprint_size; i++) {
-    fingerprint[i] = static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
-  }
-
-  size_t index = upper_hash;
-  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash));
-  assert(index == alt_index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
+  size_t index;
+  size_t alt_index;
+  std::vector<uint8_t> fingerprint;
+  std::tie(index, alt_index, fingerprint) = indexes_and_fingerprint_for(item, m_fingerprint_size);
 
   // TODO: rebucketing
   bool inserted =
@@ -136,24 +148,10 @@ bool CuckooFilter<T>::insert(const T item) {
 
 template <typename T>
 bool CuckooFilter<T>::contains(const T item) const {
-  std::hash<T> hash_fn;
-  uint64_t hash = strong_hash_fn(hash_fn(item));
-  if (hash == 0) {
-    hash = 1;
-    std::cerr << "Hash Collision with 0. This is probably nothing to worry about." << std::endl;
-  }
-
-  const uint32_t lower_hash = static_cast<uint32_t>(hash);
-  const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
-
-  std::vector<uint8_t> fingerprint(m_fingerprint_size);
-  for (size_t i = 0; i < m_fingerprint_size; i++) {
-    fingerprint[i] = static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
-  }
-
-  size_t index = upper_hash;
-  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash));
-  assert(index == alt_index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
+  size_t index;
+  size_t alt_index;
+  std::vector<uint8_t> fingerprint;
+  std::tie(index, alt_index, fingerprint) = indexes_and_fingerprint_for(item, m_fingerprint_size);
 
   bool contained =
     m_buckets[index % m_buckets.size()].contains(fingerprint)
@@ -163,24 +161,10 @@ bool CuckooFilter<T>::contains(const T item) const {
 
 template <typename T>
 bool CuckooFilter<T>::erase(const T item) {
-  std::hash<T> hash_fn;
-  uint64_t hash = strong_hash_fn(hash_fn(item));
-  if (hash == 0) {
-    hash = 1;
-    std::cerr << "Hash Collision with 0. This is probably nothing to worry about." << std::endl;
-  }
-
-  const uint32_t lower_hash = static_cast<uint32_t>(hash);
-  const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
-
-  std::vector<uint8_t> fingerprint(m_fingerprint_size);
-  for (size_t i = 0; i < m_fingerprint_size; i++) {
-    fingerprint[i] = static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
-  }
-
-  size_t index = upper_hash;
-  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash));
-  assert(index == alt_index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
+  size_t index;
+  size_t alt_index;
+  std::vector<uint8_t> fingerprint;
+  std::tie(index, alt_index, fingerprint) = indexes_and_fingerprint_for(item, m_fingerprint_size);
 
   bool erased = m_buckets[index % m_buckets.size()].erase(fingerprint)
                 || m_buckets[alt_index % m_buckets.size()].erase(fingerprint);
