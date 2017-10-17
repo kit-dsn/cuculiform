@@ -70,7 +70,7 @@ bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
     std::find(m_fingerprints.begin(), m_fingerprints.end(), empty_fingerprint);
   bool has_empty_position = position != m_fingerprints.end();
   if (has_empty_position) {
-    // found empty position, insert!
+    // found empty position, insert by bytewise-copying the fingerprint into that slot
     std::copy(fingerprint.begin(), fingerprint.end(), position->begin());
   }
   return has_empty_position;
@@ -87,7 +87,7 @@ bool Bucket::erase(const std::vector<uint8_t> fingerprint) {
     std::find(m_fingerprints.begin(), m_fingerprints.end(), fingerprint);
   bool has_fingerprint = position != m_fingerprints.end();
   if (has_fingerprint) {
-    // found that fingerprint, delete it.
+    // found that fingerprint, delete it by filling its slot with zeros
     std::fill(position->begin(), position->end(), 0);
   }
   return has_fingerprint;
