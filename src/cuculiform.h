@@ -6,6 +6,9 @@ using namespace highwayhash;
 
 namespace cuculiform {
 
+// Change the implementation of this function signature to test other hash functions, e.g. SipHasher included in the
+// highwayhash library.
+// TODO: Make it easy to swap in a choice from several implementations, e.g. via templates
 uint64_t strong_hash_fn(size_t value) {
   char bytes[sizeof(value)];
   for (size_t i = 0; i < sizeof(value); i++) {
