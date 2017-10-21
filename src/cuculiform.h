@@ -8,8 +8,8 @@ namespace cuculiform {
 
 // Change the implementation of this function signature to test other hash
 // functions, e.g. SipHasher included in the highwayhash library.
-// TODO: Make it easy to swap in a choice from several implementations, e.g. via
-// templates
+// TODO: Make it easy to swap in a choice from several implementations,
+// e.g. via templates
 uint64_t strong_hash_fn(size_t value) {
   char bytes[sizeof(value)];
   for (size_t i = 0; i < sizeof(value); i++) {
@@ -47,7 +47,8 @@ indexes_and_fingerprint_for(const T item, const size_t fingerprint_size) {
   const uint32_t fingerprint = fingerprint_part >> 32 - fingerprint_size * 8;
   std::vector<uint8_t> fingerprint_vec(fingerprint_size);
   for (size_t i = 0; i < fingerprint_size; i++) {
-    fingerprint_vec[i] = static_cast<uint8_t>((fingerprint_part >> i * 8) & 0xFF);
+    fingerprint_vec[i] =
+      static_cast<uint8_t>((fingerprint_part >> i * 8) & 0xFF);
   }
 
   size_t index = index_part;

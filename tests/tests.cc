@@ -90,7 +90,7 @@ TEST_CASE("false positive test", "[cuculiform]") {
   // TODO: REQUIRE a memory usage
   std::cout << "false positive rate: " << false_positive_rate << "%"
             << std::endl;
-  // ratio should be around 0.024, round up to 0.03 to accomodate for random
-  // fluctuation
+  // ratio should be around 0.024, round up to 0.03
+  // to accomodate for random fluctuation
   REQUIRE(false_positive_rate < 0.03);
 }
