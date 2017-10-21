@@ -118,6 +118,8 @@ public:
         m_capacity(capacity),
         m_bucket_size(4),
         m_fingerprint_size(2) {
+    assert(m_fingerprint_size > 0);
+    assert(m_fingerprint_size <= 4);
     // round up to get required number of buckets
     size_t num_buckets = (m_capacity + m_bucket_size - 1) / m_bucket_size;
     Bucket empty_bucket{m_bucket_size, m_fingerprint_size};
