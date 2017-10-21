@@ -9,7 +9,8 @@
 
 TEST_CASE("create cuckoofilter", "[cuculiform]") {
   size_t capacity = 1024;
-  cuculiform::CuckooFilter<uint64_t> filter{capacity};
+  size_t fingerprint_size = 2;
+  cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size};
 
   REQUIRE(filter.size() == 0);
   REQUIRE(filter.capacity() == capacity);
@@ -41,7 +42,8 @@ TEST_CASE("create cuckoofilter", "[cuculiform]") {
 
 TEST_CASE("string cuckoofilter", "[cuculiform]") {
   size_t capacity = 1024;
-  cuculiform::CuckooFilter<std::string> filter{capacity};
+  size_t fingerprint_size = 2;
+  cuculiform::CuckooFilter<std::string> filter{capacity, fingerprint_size};
   REQUIRE(filter.insert("helloworld") == true);
   REQUIRE(filter.contains("helloworld") == true);
   REQUIRE(filter.contains("1337") == false);
@@ -51,7 +53,8 @@ TEST_CASE("string cuckoofilter", "[cuculiform]") {
 
 TEST_CASE("false positive test", "[cuculiform]") {
   size_t total_items = 1000000;
-  cuculiform::CuckooFilter<uint64_t> filter{total_items};
+  size_t fingerprint_size = 2;
+  cuculiform::CuckooFilter<uint64_t> filter{total_items, fingerprint_size};
 
   size_t num_inserted = 0;
   // We might not be able to get all items in, but still there should be enough

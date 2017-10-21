@@ -113,11 +113,11 @@ void Bucket::clear() {
 template <typename T>
 class CuckooFilter {
 public:
-  explicit CuckooFilter(size_t capacity)
+  explicit CuckooFilter(size_t capacity, size_t fingerprint_size)
       : m_size(0),
         m_capacity(capacity),
         m_bucket_size(4),
-        m_fingerprint_size(2) {
+        m_fingerprint_size(fingerprint_size) {
     assert(m_fingerprint_size > 0);
     assert(m_fingerprint_size <= 4);
     // round up to get required number of buckets
