@@ -39,20 +39,23 @@ indexes_and_fingerprint_for(const T item, const size_t fingerprint_size) {
       << std::endl;
   }
 
-  const uint32_t lower_hash = static_cast<uint32_t>(hash);
-  const uint32_t upper_hash = static_cast<uint32_t>(hash >> 32);
+  // split hash to lower and upper half
+  const uint32_t fingerprint_part = static_cast<uint32_t>(hash);
+  const uint32_t index_part = static_cast<uint32_t>(hash >> 32);
 
-  std::vector<uint8_t> fingerprint(fingerprint_size);
+  // only use fingerprint_size bytes of the hash
+  const uint32_t fingerprint = fingerprint_part >> 32 - fingerprint_size * 8;
+  std::vector<uint8_t> fingerprint_vec(fingerprint_size);
   for (size_t i = 0; i < fingerprint_size; i++) {
-    fingerprint[i] = static_cast<uint8_t>((lower_hash >> i * 8) & 0xFF);
+    fingerprint_vec[i] = static_cast<uint8_t>((fingerprint_part >> i * 8) & 0xFF);
   }
 
-  size_t index = upper_hash;
-  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(upper_hash));
+  size_t index = index_part;
+  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(fingerprint));
   assert(index == alt_index
-         ^ static_cast<uint32_t>(strong_hash_fn(upper_hash)));
+         ^ static_cast<uint32_t>(strong_hash_fn(fingerprint)));
 
-  return std::make_tuple(index, alt_index, fingerprint);
+  return std::make_tuple(index, alt_index, fingerprint_vec);
 }
 
 struct Bucket {
