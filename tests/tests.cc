@@ -53,14 +53,14 @@ TEST_CASE("string cuckoofilter", "[cuculiform]") {
 }
 
 TEST_CASE("false positive test", "[cuculiform]") {
-  size_t total_items = 1000000;
+  size_t capacity = 1000000;
   size_t fingerprint_size = 2;
-  cuculiform::CuckooFilter<uint64_t> filter{total_items, fingerprint_size};
+  cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size};
 
   size_t num_inserted = 0;
   // We might not be able to get all items in, but still there should be enough
   // so we can just use what has fit in and continue with the test.
-  for (size_t i = 0; i < total_items; i++) {
+  for (size_t i = 0; i < capacity; i++) {
     if (!filter.insert(i)) {
       num_inserted = i;
       break;
@@ -74,17 +74,18 @@ TEST_CASE("false positive test", "[cuculiform]") {
     REQUIRE(filter.contains(i));
   }
 
-  // The range total_items..(2 * total_items) are all known *not* to be in the
-  // filter. Every element for which the filter claims that it is contained is
+  // Everything above capacity is known *not* to be in the filter.
+  // Every element for which the filter claims that it is contained is
   // therefore a false positive.
   size_t false_queries = 0;
-  for (size_t i = total_items; i < 2 * total_items; i++) {
+  size_t queries = capacity;
+  for (size_t i = capacity; i < capacity + queries; i++) {
     if (filter.contains(i)) {
       false_queries += 1;
     }
   }
   double false_positive_rate =
-    static_cast<double>(false_queries) / static_cast<double>(total_items);
+    static_cast<double>(false_queries) / static_cast<double>(queries);
 
   // Use the user-preferred locale to get thousand separators in output
   std::cout.imbue(std::locale(""));
@@ -95,7 +96,7 @@ TEST_CASE("false positive test", "[cuculiform]") {
   size_t memory_usage_KiB = filter.memory_usage() / 1024;
   std::cout << "memory usage: " << memory_usage_KiB << "KiB" << std::endl;
   std::cout << "lower bound on memory usage: "
-            << (total_items * fingerprint_size) / 1024 << "KiB" << std::endl;
+            << (capacity * fingerprint_size) / 1024 << "KiB" << std::endl;
   filter.memory_usage_info();
   std::cout << "false positive rate: " << false_positive_rate << "%"
             << std::endl;
