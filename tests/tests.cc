@@ -6,6 +6,7 @@
 #include <string>
 
 #include <iostream>
+#include <locale>
 
 TEST_CASE("create cuckoofilter", "[cuculiform]") {
   size_t capacity = 1024;
@@ -85,9 +86,17 @@ TEST_CASE("false positive test", "[cuculiform]") {
   double false_positive_rate =
     static_cast<double>(false_queries) / static_cast<double>(total_items);
 
+  // Use the user-preferred locale to get thousand separators in output
+  std::cout.imbue(std::locale(""));
+
   // TODO: REQUIRE a minimum number or ratio of inserted events
   std::cout << "elements inserted: " << num_inserted << std::endl;
-  // TODO: REQUIRE a memory usage
+  // TODO: REQUIRE some memory usage value or range
+  size_t memory_usage_KiB = filter.memory_usage() / 1024;
+  std::cout << "memory usage: " << memory_usage_KiB << "KiB" << std::endl;
+  std::cout << "lower bound on memory usage: "
+            << (total_items * fingerprint_size) / 1024 << "KiB" << std::endl;
+  filter.memory_usage_info();
   std::cout << "false positive rate: " << false_positive_rate << "%"
             << std::endl;
   // ratio should be around 0.024, round up to 0.03

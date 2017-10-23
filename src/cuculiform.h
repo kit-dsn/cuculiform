@@ -72,6 +72,9 @@ struct Bucket {
   bool contains(const std::vector<uint8_t> fingerprint) const;
   bool erase(const std::vector<uint8_t> fingerprint);
   void clear();
+
+  size_t memory_usage() const;
+  void memory_usage_info() const;
 };
 
 bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
@@ -111,6 +114,32 @@ void Bucket::clear() {
                 });
 }
 
+size_t Bucket::memory_usage() const {
+  // (sizeof actually takes array-like padding into account)
+  // assert that all Buckets have the same memory usage:
+  size_t reserved_fingerprint_size = sizeof(m_fingerprints[0]);
+  size_t used_fingerprint_size =
+    reserved_fingerprint_size + m_fingerprints[0].capacity() * sizeof(uint8_t);
+  return sizeof(Bucket) + used_fingerprint_size * m_fingerprints.size()
+         + reserved_fingerprint_size
+             * (m_fingerprints.capacity() - m_fingerprints.size());
+}
+
+void Bucket::memory_usage_info() const {
+  std::cerr << "== Bucket memory usage broken up: ==" << std::endl;
+  std::cerr << "sizeof Bucket struct: " << sizeof(Bucket) << "B" << std::endl;
+  std::cerr << "number of used fingerprints: " << m_fingerprints.size()
+            << std::endl;
+  std::cerr << "number of excess fingerprints: "
+            << m_fingerprints.capacity() - m_fingerprints.size() << std::endl;
+  std::cerr << "single used fingerprint memory usage: "
+            << sizeof(m_fingerprints[0])
+                 + m_fingerprints[0].capacity() * sizeof(uint8_t)
+            << "B" << std::endl;
+  std::cerr << "single unused fingerprint memory usage: "
+            << sizeof(m_fingerprints[0]) << "B" << std::endl;
+}
+
 template <typename T>
 class CuckooFilter {
 public:
@@ -133,6 +162,8 @@ public:
   void clear();
   size_t size() const;
   size_t capacity() const;
+  size_t memory_usage() const;
+  void memory_usage_info() const;
 
 private:
   size_t m_size;
@@ -205,6 +236,32 @@ size_t CuckooFilter<T>::size() const {
 template <typename T>
 size_t CuckooFilter<T>::capacity() const {
   return m_capacity;
+}
+
+template <typename T>
+size_t CuckooFilter<T>::memory_usage() const {
+  // (sizeof actually takes array-like padding into account)
+  // assert that all Buckets have the same memory usage:
+  size_t reserved_bucket_size = sizeof(Bucket);
+  size_t used_bucket_size = m_buckets[0].memory_usage();
+  return sizeof(CuckooFilter<T>) + used_bucket_size * m_buckets.size()
+         + reserved_bucket_size * (m_buckets.capacity() - m_buckets.size());
+}
+
+template <typename T>
+void CuckooFilter<T>::memory_usage_info() const {
+  std::cerr << "== Cuckoofilter memory usage broken up: ==" << std::endl;
+  std::cerr << "sizeof CuckooFilter struct: " << sizeof(CuckooFilter<T>) << "B"
+            << std::endl;
+  std::cerr << "number of used buckets: " << m_buckets.size() << std::endl;
+  std::cerr << "number of excess buckets: "
+            << m_buckets.capacity() - m_buckets.size() << std::endl;
+  std::cerr << "single used bucket memory usage: "
+            << m_buckets[0].memory_usage() << "B" << std::endl;
+  std::cerr << "single unused bucket memory usage: " << sizeof(Bucket) << "B"
+            << std::endl;
+  m_buckets[0].memory_usage_info();
+  std::cerr << "==========================================" << std::endl;
 }
 
 } // namespace cuculiform
