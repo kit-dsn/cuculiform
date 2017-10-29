@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <assert.h>
+#include <functional>
 
 #include "highwayhash/highwayhash.h"
 
@@ -9,11 +10,9 @@ using namespace highwayhash;
 
 namespace cuculiform {
 
-// Change the implementation of this function signature to test other hash
-// functions, e.g. SipHasher included in the highwayhash library.
-// TODO: Make it easy to swap in a choice from several implementations,
-// e.g. via templates
-uint64_t strong_hash_fn(size_t value) {
+// implements the required strong hash function signature
+// for CuckooFilter using HighwayHash
+inline uint64_t highwayhash(size_t value) {
   char bytes[sizeof(value)];
   for (size_t i = 0; i < sizeof(value); i++) {
     bytes[i] = static_cast<uint8_t>((value >> i * 8) & 0xFF);
@@ -27,8 +26,9 @@ uint64_t strong_hash_fn(size_t value) {
 }
 
 template <typename T>
-std::tuple<size_t, size_t, std::vector<uint8_t>>
-indexes_and_fingerprint_for(const T item, const size_t fingerprint_size) {
+inline std::tuple<size_t, size_t, std::vector<uint8_t>>
+indexes_and_fingerprint_for(const T item, const size_t fingerprint_size,
+                            std::function<uint64_t(size_t)> strong_hash_fn) {
   // use std::hash to normalize any type to a size_t.
   // Note that it doesn't necessarily produce distributed hashes,
   // i.e. for uints, it might just be the identity function.
@@ -146,11 +146,14 @@ void Bucket::memory_usage_info() const {
 template <typename T>
 class CuckooFilter {
 public:
-  explicit CuckooFilter(size_t capacity, size_t fingerprint_size)
+  explicit CuckooFilter(
+    size_t capacity, size_t fingerprint_size,
+    std::function<uint64_t(size_t)> strong_hash_fn = highwayhash)
       : m_size(0),
         m_capacity(capacity),
         m_bucket_size(4),
-        m_fingerprint_size(fingerprint_size) {
+        m_fingerprint_size(fingerprint_size),
+        m_strong_hash_fn(strong_hash_fn) {
     assert(m_fingerprint_size > 0);
     assert(m_fingerprint_size <= 4);
     // round up to get required number of buckets
@@ -174,6 +177,7 @@ private:
   const size_t m_capacity;
   const size_t m_bucket_size;
   const size_t m_fingerprint_size;
+  const std::function<uint64_t(size_t)> m_strong_hash_fn;
 };
 
 template <typename T>
@@ -182,7 +186,7 @@ bool CuckooFilter<T>::insert(const T item) {
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
   std::tie(index, alt_index, fingerprint) =
-    indexes_and_fingerprint_for(item, m_fingerprint_size);
+    indexes_and_fingerprint_for(item, m_fingerprint_size, m_strong_hash_fn);
 
   // TODO: rebucketing
   bool inserted =
@@ -200,7 +204,7 @@ bool CuckooFilter<T>::contains(const T item) const {
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
   std::tie(index, alt_index, fingerprint) =
-    indexes_and_fingerprint_for(item, m_fingerprint_size);
+    indexes_and_fingerprint_for(item, m_fingerprint_size, m_strong_hash_fn);
 
   bool contained =
     m_buckets[index % m_buckets.size()].contains(fingerprint)
@@ -214,7 +218,7 @@ bool CuckooFilter<T>::erase(const T item) {
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
   std::tie(index, alt_index, fingerprint) =
-    indexes_and_fingerprint_for(item, m_fingerprint_size);
+    indexes_and_fingerprint_for(item, m_fingerprint_size, m_strong_hash_fn);
 
   bool erased = m_buckets[index % m_buckets.size()].erase(fingerprint)
                 || m_buckets[alt_index % m_buckets.size()].erase(fingerprint);
