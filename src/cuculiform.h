@@ -80,7 +80,7 @@ struct Bucket {
   void memory_usage_info() const;
 };
 
-bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
+inline bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
   auto empty_fingerprint = std::vector<uint8_t>(fingerprint.size(), 0);
   auto position =
     std::find(m_fingerprints.begin(), m_fingerprints.end(), empty_fingerprint);
@@ -93,13 +93,13 @@ bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
   return has_empty_position;
 }
 
-bool Bucket::contains(const std::vector<uint8_t> fingerprint) const {
+inline bool Bucket::contains(const std::vector<uint8_t> fingerprint) const {
   auto position =
     std::find(m_fingerprints.begin(), m_fingerprints.end(), fingerprint);
   return position != m_fingerprints.end();
 }
 
-bool Bucket::erase(const std::vector<uint8_t> fingerprint) {
+inline bool Bucket::erase(const std::vector<uint8_t> fingerprint) {
   auto position =
     std::find(m_fingerprints.begin(), m_fingerprints.end(), fingerprint);
   bool has_fingerprint = position != m_fingerprints.end();
@@ -110,14 +110,14 @@ bool Bucket::erase(const std::vector<uint8_t> fingerprint) {
   return has_fingerprint;
 }
 
-void Bucket::clear() {
+inline void Bucket::clear() {
   std::for_each(m_fingerprints.begin(), m_fingerprints.end(),
                 [](std::vector<uint8_t>& fingerprint) {
                   std::fill(fingerprint.begin(), fingerprint.end(), 0);
                 });
 }
 
-size_t Bucket::memory_usage() const {
+inline size_t Bucket::memory_usage() const {
   // (sizeof actually takes array-like padding into account)
   // assert that all Buckets have the same memory usage:
   size_t reserved_fingerprint_size = sizeof(m_fingerprints[0]);
@@ -128,7 +128,7 @@ size_t Bucket::memory_usage() const {
              * (m_fingerprints.capacity() - m_fingerprints.size());
 }
 
-void Bucket::memory_usage_info() const {
+inline void Bucket::memory_usage_info() const {
   std::cerr << "== Bucket memory usage broken up: ==" << std::endl;
   std::cerr << "sizeof Bucket struct: " << sizeof(Bucket) << "B" << std::endl;
   std::cerr << "number of used fingerprints: " << m_fingerprints.size()
@@ -181,7 +181,7 @@ private:
 };
 
 template <typename T>
-bool CuckooFilter<T>::insert(const T item) {
+inline bool CuckooFilter<T>::insert(const T item) {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
@@ -199,7 +199,7 @@ bool CuckooFilter<T>::insert(const T item) {
 }
 
 template <typename T>
-bool CuckooFilter<T>::contains(const T item) const {
+inline bool CuckooFilter<T>::contains(const T item) const {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
@@ -213,7 +213,7 @@ bool CuckooFilter<T>::contains(const T item) const {
 }
 
 template <typename T>
-bool CuckooFilter<T>::erase(const T item) {
+inline bool CuckooFilter<T>::erase(const T item) {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
@@ -229,24 +229,24 @@ bool CuckooFilter<T>::erase(const T item) {
 }
 
 template <typename T>
-void CuckooFilter<T>::clear() {
+inline void CuckooFilter<T>::clear() {
   std::for_each(m_buckets.begin(), m_buckets.end(),
                 [](Bucket& bucket) { bucket.clear(); });
   m_size = 0;
 }
 
 template <typename T>
-size_t CuckooFilter<T>::size() const {
+inline size_t CuckooFilter<T>::size() const {
   return m_size;
 }
 
 template <typename T>
-size_t CuckooFilter<T>::capacity() const {
+inline size_t CuckooFilter<T>::capacity() const {
   return m_capacity;
 }
 
 template <typename T>
-size_t CuckooFilter<T>::memory_usage() const {
+inline size_t CuckooFilter<T>::memory_usage() const {
   // (sizeof actually takes array-like padding into account)
   // assert that all Buckets have the same memory usage:
   size_t reserved_bucket_size = sizeof(Bucket);
@@ -256,7 +256,7 @@ size_t CuckooFilter<T>::memory_usage() const {
 }
 
 template <typename T>
-void CuckooFilter<T>::memory_usage_info() const {
+inline void CuckooFilter<T>::memory_usage_info() const {
   std::cerr << "== Cuckoofilter memory usage broken up: ==" << std::endl;
   std::cerr << "sizeof CuckooFilter struct: " << sizeof(CuckooFilter<T>) << "B"
             << std::endl;
