@@ -47,7 +47,7 @@ indexes_and_fingerprint_for(const T item, const size_t fingerprint_size,
   const uint32_t index_part = static_cast<uint32_t>(hash >> 32);
 
   // only use fingerprint_size bytes of the hash
-  const uint32_t fingerprint = fingerprint_part >> 32 - fingerprint_size * 8;
+  const uint32_t fingerprint = fingerprint_part >> (32 - fingerprint_size * 8);
   std::vector<uint8_t> fingerprint_vec(fingerprint_size);
   for (size_t i = 0; i < fingerprint_size; i++) {
     fingerprint_vec[i] =
