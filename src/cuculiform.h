@@ -1,6 +1,9 @@
 #pragma once
-#include "highwayhash/highwayhash.h"
+
+#include <algorithm>
 #include <assert.h>
+
+#include "highwayhash/highwayhash.h"
 
 using namespace highwayhash;
 
