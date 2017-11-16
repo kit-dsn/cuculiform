@@ -16,7 +16,7 @@
 # use NO_DEFAULT_PATH as the install target of highwayhash is broken
 # Place the git repo next to this project and do a make
 find_library(HIGHWAYHASH_LIBRARY
-    NAMES libhighwayhash.so
+    NAMES libhighwayhash.a
     PATHS ../highwayhash/lib
     NO_DEFAULT_PATH
 )
