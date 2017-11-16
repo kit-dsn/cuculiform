@@ -18,7 +18,8 @@ but the hash function is interchangeable.
 git clone https://git.scc.kit.edu/dsn-projects/nsm/cuculiform.git
 git clone https://github.com/google/highwayhash.git
 cd highwayhash
-# Building on Ubuntu has this issue, as of 2017-11-16: https://github.com/google/highwayhash/issues/60
+# Building on Ubuntu has this issue, as of 2017-11-16:
+# https://github.com/google/highwayhash/issues/60
 # See workaround there.
 make -j$(nproc)
 cd ../cuculiform
