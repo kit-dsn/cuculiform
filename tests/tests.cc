@@ -53,7 +53,7 @@ TEST_CASE("string cuckoofilter", "[cuculiform]") {
 }
 
 TEST_CASE("false positive test", "[cuculiform]") {
-  size_t capacity = 1000000;
+  size_t capacity = 1 << 20;
   size_t fingerprint_size = 2;
   cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size};
 
