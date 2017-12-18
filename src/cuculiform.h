@@ -10,6 +10,21 @@ using namespace highwayhash;
 
 namespace cuculiform {
 
+// round to next highest power of two of 64bit v
+// https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+size_t ceil_to_power_of_two(size_t v) {
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v |= v >> 32;
+  v++;
+  v += (v == 0);
+  return v;
+}
+
 // implements the required strong hash function signature
 // for CuckooFilter using HighwayHash
 inline uint64_t highwayhash(size_t value) {
@@ -156,8 +171,10 @@ public:
         m_strong_hash_fn(strong_hash_fn) {
     assert(m_fingerprint_size > 0);
     assert(m_fingerprint_size <= 4);
-    // round up to get required number of buckets
-    size_t num_buckets = (m_capacity + m_bucket_size - 1) / m_bucket_size;
+
+    // for partial hashing to work, i.e. not generate invalid bucket indexes.
+    size_t num_buckets = ceil_to_power_of_two(m_capacity);
+
     Bucket empty_bucket{m_bucket_size, m_fingerprint_size};
     m_buckets = std::vector<Bucket>(num_buckets, empty_bucket);
   }
