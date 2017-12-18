@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <functional>
+#include <random>
 
 #include "highwayhash/highwayhash.h"
 
@@ -70,6 +71,7 @@ struct Bucket {
   std::vector<std::vector<uint8_t>> m_fingerprints;
 
   bool insert(const std::vector<uint8_t> fingerprint);
+  void swap(std::vector<uint8_t>& fingerprint, size_t index);
   bool contains(const std::vector<uint8_t> fingerprint) const;
   bool erase(const std::vector<uint8_t> fingerprint);
   void clear();
@@ -92,6 +94,10 @@ inline bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
     std::copy(fingerprint.begin(), fingerprint.end(), position->begin());
   }
   return has_empty_position;
+}
+
+inline void Bucket::swap(std::vector<uint8_t>& fingerprint, size_t index) {
+  std::swap(m_fingerprints[index], fingerprint);
 }
 
 inline bool Bucket::contains(const std::vector<uint8_t> fingerprint) const {
@@ -157,13 +163,16 @@ template <typename T>
 class CuckooFilter {
 public:
   explicit CuckooFilter(
-    size_t capacity, size_t fingerprint_size,
+    size_t capacity, size_t fingerprint_size, uint max_relocations = 10,
     std::function<uint64_t(size_t)> strong_hash_fn = highwayhash)
       : m_size(0),
         m_capacity(capacity),
         m_bucket_size(4),
         m_fingerprint_size(fingerprint_size),
-        m_strong_hash_fn(strong_hash_fn) {
+        m_max_relocations(max_relocations),
+        m_strong_hash_fn(strong_hash_fn),
+        index_dis(0, 1),
+        bucket_dis(0, m_bucket_size - 1) {
     assert(m_fingerprint_size > 0);
     assert(m_fingerprint_size <= 4);
 
@@ -172,6 +181,13 @@ public:
 
     Bucket empty_bucket{m_bucket_size, m_fingerprint_size};
     m_buckets = std::vector<Bucket>(num_buckets, empty_bucket);
+
+    std::random_device
+      rd; // Will be used to obtain a seed for the random number engine
+    auto seed = rd();
+    /* auto seed = 1115641093; */
+    gen =
+      std::mt19937(seed); // Standard mersenne_twister_engine seeded with rd()
   }
 
   bool insert(const T item);
@@ -193,7 +209,11 @@ private:
   const size_t m_capacity;
   const size_t m_bucket_size;
   const size_t m_fingerprint_size;
+  const uint m_max_relocations;
   const std::function<uint64_t(size_t)> m_strong_hash_fn;
+  std::mt19937 gen; // Standard mersenne_twister_engine seeded with rd()
+  std::uniform_int_distribution<> index_dis;
+  std::uniform_int_distribution<> bucket_dis;
 
   size_t get_alt_index(const size_t index, const Fingerprint fingerprint) const;
   std::tuple<size_t, size_t, Fingerprint>
@@ -270,13 +290,34 @@ inline bool CuckooFilter<T>::insert(const T item) {
 
   assert(index == get_alt_index(alt_index, fingerprint));
 
-  size_t index_to_insert = index;
+  size_t index_to_insert = index_dis(gen) ? index : alt_index;
   bool inserted = m_buckets[index_to_insert].insert(fingerprint);
   if (inserted) {
     m_size++;
     return true;
   }
 
+  // TODO: insert two times the same value?
+  Fingerprint fp_to_insert = fingerprint;
+  index_to_insert = get_alt_index(index_to_insert, fp_to_insert);
+  for (uint i = 0; i < m_max_relocations; i++) {
+    bool inserted = m_buckets[index_to_insert].insert(fp_to_insert);
+    if (inserted) {
+      m_size++;
+      return true;
+    } else {
+
+      size_t which_fingerprint_to_relocate = bucket_dis(gen);
+
+      m_buckets[index_to_insert].swap(fp_to_insert,
+                                      which_fingerprint_to_relocate);
+
+      index_to_insert = get_alt_index(index_to_insert, fp_to_insert);
+    }
+  }
+
+  // TODO: have a victim cache like the reference implementation instead of
+  // throwing the last element out?
   return false;
 }
 

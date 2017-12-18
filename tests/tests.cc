@@ -58,21 +58,38 @@ TEST_CASE("false positive test", "[cuculiform]") {
   cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size};
 
   size_t num_insertions = 0;
+  bool failed_rebucketing = false;
   // We might not be able to get all items in, but still there should be enough
   // so we can just use what has fit in and continue with the test.
   for (size_t i = 0; i < capacity; i++) {
     num_insertions++;
     if (!filter.insert(i)) {
+      // NOTE: Although insert returns false, the item is inserted but another
+      //       one has been kicked out due to the relocation process.
+      std::cerr << "could not relocate when inserting " << i << std::endl;
+      failed_rebucketing = true;
       break;
     }
   }
-
-  // The range 0..num_inserted are all known to be in the filter.
-  // The filter shouldn't return false negatives, and therefore they should all
-  // be contained.
-  for (size_t i = 0; i < num_inserted; i++) {
-    REQUIRE(filter.contains(i));
+  if (!failed_rebucketing) {
+    std::cerr << "could insert all elements" << std::endl;
   }
+  // The range [0..n-1,n+1..num_insertions) are all known to be in the filter,
+  // where n is the item that was kicked out during max relocations.
+  // In sum, num_insertions items should be contained in the filter, -1 if
+  // failed_rebucketing
+  size_t num_contained = 0;
+  size_t missing_elements = 0;
+  for (size_t i = 0; i < num_insertions; i++) {
+    if (filter.contains(i)) {
+      num_contained++;
+    } else {
+      missing_elements++;
+      std::cout << "evicted element: " << i << std::endl;
+    }
+  }
+  REQUIRE(missing_elements <= static_cast<size_t>(failed_rebucketing));
+  REQUIRE(num_insertions - failed_rebucketing <= num_contained);
 
   // Everything above capacity is known *not* to be in the filter.
   // Every element for which the filter claims that it is contained is
@@ -99,6 +116,10 @@ TEST_CASE("false positive test", "[cuculiform]") {
   std::cout << "lower bound on memory usage: "
             << (capacity * fingerprint_size) / 1024 << "KiB" << std::endl;
   filter.memory_usage_info();
+  std::cout << "filter is at "
+            << (num_insertions - failed_rebucketing)
+                 / static_cast<double>(capacity)
+            << " of capacity" << std::endl;
   std::cout << "false positive rate: " << false_positive_rate << "%"
             << std::endl;
 
