@@ -25,6 +25,24 @@ size_t ceil_to_power_of_two(size_t v) {
   return v;
 }
 
+// convert byte vector to uint32_t representation
+inline uint32_t from_bytes(std::vector<uint8_t> vec) {
+  uint32_t linear = 0;
+  for (size_t i = 0; i < vec.size(); i++) {
+    linear |= (vec[i] << i * 8);
+  }
+  return linear;
+}
+// convert a uint32_t into byte vector representation
+inline std::vector<uint8_t> into_bytes(uint32_t linear, size_t num_bytes) {
+  std::vector<uint8_t> vec(num_bytes);
+  for (size_t i = 0; i < vec.size(); i++) {
+    // shift to right to remove everything unneeded
+    vec[i] = static_cast<uint8_t>(linear >> i * 8);
+  }
+  return vec;
+}
+
 // implements the required strong hash function signature
 // for CuckooFilter using HighwayHash
 inline uint64_t highwayhash(size_t value) {
@@ -93,6 +111,8 @@ struct Bucket {
 
   size_t memory_usage() const;
   void memory_usage_info() const;
+
+  friend std::ostream& operator<<(std::ostream& out, const Bucket& bucket);
 };
 
 inline bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
@@ -158,6 +178,15 @@ inline void Bucket::memory_usage_info() const {
             << sizeof(m_fingerprints[0]) << "B" << std::endl;
 }
 
+inline std::ostream& operator<<(std::ostream& out, const Bucket& bucket) {
+  out << "{ " << std::hex;
+  for (const auto& fingerprint : bucket.m_fingerprints) {
+    out << from_bytes(fingerprint) << ", ";
+  }
+  out << "}" << std::dec;
+  return out;
+}
+
 template <typename T>
 class CuckooFilter {
 public:
@@ -188,6 +217,10 @@ public:
   size_t memory_usage() const;
   void memory_usage_info() const;
 
+  template <typename U>
+  friend std::ostream& operator<<(std::ostream& out,
+                                  const CuckooFilter<U>& filter);
+
 private:
   size_t m_size;
   std::vector<Bucket> m_buckets;
@@ -199,6 +232,7 @@ private:
 
 template <typename T>
 inline bool CuckooFilter<T>::insert(const T item) {
+
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
@@ -286,6 +320,17 @@ inline void CuckooFilter<T>::memory_usage_info() const {
             << std::endl;
   m_buckets[0].memory_usage_info();
   std::cerr << "==========================================" << std::endl;
+}
+
+template <typename T>
+inline std::ostream& operator<<(std::ostream& out,
+                                const CuckooFilter<T>& filter) {
+  out << "{" << std::endl;
+  for (const auto& bucket : filter.m_buckets) {
+    out << "  " << bucket << std::endl;
+  }
+  out << "}" << std::endl;
+  return out;
 }
 
 } // namespace cuculiform
