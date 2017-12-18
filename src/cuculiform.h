@@ -117,6 +117,7 @@ struct Bucket {
 
 inline bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
   auto empty_fingerprint = std::vector<uint8_t>(fingerprint.size(), 0);
+  assert(empty_fingerprint != fingerprint);
   auto position =
     std::find(m_fingerprints.begin(), m_fingerprints.end(), empty_fingerprint);
   bool has_empty_position = position != m_fingerprints.end();
