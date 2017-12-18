@@ -13,7 +13,7 @@ namespace cuculiform {
 
 // round to next highest power of two of 64bit v
 // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-size_t ceil_to_power_of_two(size_t v) {
+inline size_t ceil_to_power_of_two(size_t v) {
   v--;
   v |= v >> 1;
   v |= v >> 2;
