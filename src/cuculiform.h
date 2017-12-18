@@ -58,42 +58,7 @@ inline uint64_t highwayhash(size_t value) {
   return static_cast<uint64_t>(result);
 }
 
-template <typename T>
-inline std::tuple<size_t, size_t, std::vector<uint8_t>>
-indexes_and_fingerprint_for(const T item, const size_t fingerprint_size,
-                            std::function<uint64_t(size_t)> strong_hash_fn) {
-  // use std::hash to normalize any type to a size_t.
-  // Note that it doesn't necessarily produce distributed hashes,
-  // i.e. for uints, it might just be the identity function.
-  // To have an equally distributed hash, we then apply a strong hash function.
-  std::hash<T> weak_hash_fn;
-  uint64_t hash = strong_hash_fn(weak_hash_fn(item));
-  if (hash == 0) {
-    hash = 1;
-    std::cerr
-      << "Hash Collision with 0. This is probably nothing to worry about."
-      << std::endl;
-  }
-
-  // split hash to lower and upper half
-  const uint32_t fingerprint_part = static_cast<uint32_t>(hash);
-  const uint32_t index_part = static_cast<uint32_t>(hash >> 32);
-
-  // only use fingerprint_size bytes of the hash
-  const uint32_t fingerprint = fingerprint_part >> (32 - fingerprint_size * 8);
-  std::vector<uint8_t> fingerprint_vec(fingerprint_size);
-  for (size_t i = 0; i < fingerprint_size; i++) {
-    fingerprint_vec[i] =
-      static_cast<uint8_t>((fingerprint_part >> i * 8) & 0xFF);
-  }
-
-  size_t index = index_part;
-  size_t alt_index = index ^ static_cast<uint32_t>(strong_hash_fn(fingerprint));
-  assert(index == alt_index
-         ^ static_cast<uint32_t>(strong_hash_fn(fingerprint)));
-
-  return std::make_tuple(index, alt_index, fingerprint_vec);
-}
+typedef std::vector<uint8_t> Fingerprint; // TODO: Use it?
 
 struct Bucket {
   explicit Bucket(size_t bucket_size, size_t fingerprint_size) {
@@ -229,7 +194,71 @@ private:
   const size_t m_bucket_size;
   const size_t m_fingerprint_size;
   const std::function<uint64_t(size_t)> m_strong_hash_fn;
+
+  size_t get_alt_index(const size_t index, const Fingerprint fingerprint) const;
+  std::tuple<size_t, size_t, Fingerprint>
+  get_indexes_and_fingerprint_for(const T item) const;
 };
+
+template <typename T>
+inline size_t
+CuckooFilter<T>::get_alt_index(const size_t index,
+                               const Fingerprint fingerprint) const {
+  uint32_t fingerprint_linear = from_bytes(fingerprint);
+
+  size_t alt_index =
+    index
+    ^ (static_cast<uint32_t>(m_strong_hash_fn(fingerprint_linear))
+       % m_buckets.size());
+
+  return alt_index;
+}
+
+template <typename T>
+inline std::tuple<size_t, size_t, Fingerprint>
+CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
+  // use std::hash to normalize any type to a size_t.
+  // Note that it doesn't necessarily produce distributed hashes,
+  // i.e. for uints, it might just be the identity function.
+  // To have an equally distributed hash, we then apply a strong hash function.
+  std::hash<T> weak_hash_fn;
+  uint64_t hash = m_strong_hash_fn(weak_hash_fn(item));
+
+  // split hash to lower and upper half
+  const uint32_t fingerprint_part = static_cast<uint32_t>(hash);
+  const uint32_t index_part = static_cast<uint32_t>(hash >> 32);
+
+  // only use fingerprint_size bytes of the hash
+  uint32_t fingerprint = fingerprint_part >> (32 - m_fingerprint_size * 8);
+  if (fingerprint == 0) {
+    fingerprint = 1;
+    std::cerr << "Fingerprint collision with 0 on element " << item
+              << std::endl;
+  }
+  assert(fingerprint != 0);
+
+  std::vector<uint8_t> fingerprint_vec =
+    into_bytes(fingerprint, m_fingerprint_size);
+
+  // Apply % buckets.size() now and not later on operation execution.
+  // If done later, this is probably the cause for items "vanishing", which,
+  // turns out, actually means they're inserted in the wrong bucket on
+  // relocation and therefore are not found when being checked after them. This
+  // happens because get_alt_index returns other values when inserting vs. when
+  // relocating, because relocation uses the index of the element that gets
+  // relocated instead of computing it from the actual element. If applying
+  // modulo early / having a buckets.size() wich is a power of two, those
+  // indexes are equivalent. Strange: In contrast to the reference
+  // implementation, the rust implementation applies the modulo on operation
+  // execution and apparently does work as well.
+  size_t index = index_part % m_buckets.size();
+  size_t alt_index =
+    get_alt_index(index, fingerprint_vec); // TODO: Additional conversion :(
+
+  assert(index == get_alt_index(alt_index, fingerprint_vec));
+
+  return std::make_tuple(index, alt_index, fingerprint_vec);
+}
 
 template <typename T>
 inline bool CuckooFilter<T>::insert(const T item) {
@@ -237,17 +266,18 @@ inline bool CuckooFilter<T>::insert(const T item) {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
-  std::tie(index, alt_index, fingerprint) =
-    indexes_and_fingerprint_for(item, m_fingerprint_size, m_strong_hash_fn);
+  std::tie(index, alt_index, fingerprint) = get_indexes_and_fingerprint_for(item);
 
-  // TODO: rebucketing
-  bool inserted =
-    m_buckets[index % m_buckets.size()].insert(fingerprint)
-    || m_buckets[alt_index % m_buckets.size()].insert(fingerprint);
+  assert(index == get_alt_index(alt_index, fingerprint));
+
+  size_t index_to_insert = index;
+  bool inserted = m_buckets[index_to_insert].insert(fingerprint);
   if (inserted) {
     m_size++;
+    return true;
   }
-  return inserted;
+
+  return false;
 }
 
 template <typename T>
@@ -255,12 +285,13 @@ inline bool CuckooFilter<T>::contains(const T item) const {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
-  std::tie(index, alt_index, fingerprint) =
-    indexes_and_fingerprint_for(item, m_fingerprint_size, m_strong_hash_fn);
+  std::tie(index, alt_index, fingerprint) = get_indexes_and_fingerprint_for(item);
 
-  bool contained =
-    m_buckets[index % m_buckets.size()].contains(fingerprint)
-    || m_buckets[alt_index % m_buckets.size()].contains(fingerprint);
+  assert(alt_index == get_alt_index(index, fingerprint));
+  assert(index == get_alt_index(alt_index, fingerprint));
+
+  bool contained = m_buckets[index].contains(fingerprint)
+                   || m_buckets[alt_index].contains(fingerprint);
   return contained;
 }
 
@@ -269,11 +300,11 @@ inline bool CuckooFilter<T>::erase(const T item) {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
-  std::tie(index, alt_index, fingerprint) =
-    indexes_and_fingerprint_for(item, m_fingerprint_size, m_strong_hash_fn);
+  std::tie(index, alt_index, fingerprint) = get_indexes_and_fingerprint_for(item);
 
-  bool erased = m_buckets[index % m_buckets.size()].erase(fingerprint)
-                || m_buckets[alt_index % m_buckets.size()].erase(fingerprint);
+  // TODO: Same element removed two times?
+  bool erased = m_buckets[index].erase(fingerprint)
+                || m_buckets[alt_index].erase(fingerprint);
   if (erased) {
     m_size--;
   }
