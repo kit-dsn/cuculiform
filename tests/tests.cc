@@ -57,12 +57,12 @@ TEST_CASE("false positive test", "[cuculiform]") {
   size_t fingerprint_size = 2;
   cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size};
 
-  size_t num_inserted = 0;
+  size_t num_insertions = 0;
   // We might not be able to get all items in, but still there should be enough
   // so we can just use what has fit in and continue with the test.
   for (size_t i = 0; i < capacity; i++) {
+    num_insertions++;
     if (!filter.insert(i)) {
-      num_inserted = i;
       break;
     }
   }
@@ -91,7 +91,8 @@ TEST_CASE("false positive test", "[cuculiform]") {
   std::cout.imbue(std::locale(""));
 
   // TODO: REQUIRE a minimum number or ratio of inserted events
-  std::cout << "elements inserted: " << num_inserted << std::endl;
+  std::cout << "number of insertions: " << num_insertions << std::endl;
+  std::cout << "elements contained:   " << num_contained << std::endl;
   // TODO: REQUIRE some memory usage value or range
   size_t memory_usage_KiB = filter.memory_usage() / 1024;
   std::cout << "memory usage: " << memory_usage_KiB << "KiB" << std::endl;
@@ -100,6 +101,7 @@ TEST_CASE("false positive test", "[cuculiform]") {
   filter.memory_usage_info();
   std::cout << "false positive rate: " << false_positive_rate << "%"
             << std::endl;
+
   // ratio should be around 0.024, round up to 0.03
   // to accomodate for random fluctuation
   REQUIRE(false_positive_rate < 0.03);
