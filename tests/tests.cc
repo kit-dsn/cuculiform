@@ -8,6 +8,9 @@
 #include <iostream>
 #include <locale>
 
+#include <chrono>
+#include <ctime>
+
 TEST_CASE("create cuckoofilter", "[cuculiform]") {
   size_t capacity = 1024;
   size_t fingerprint_size = 2;
@@ -52,6 +55,7 @@ TEST_CASE("string cuckoofilter", "[cuculiform]") {
   REQUIRE(filter.contains("helloworld") == false);
 }
 
+
 TEST_CASE("false positive test", "[cuculiform]") {
   size_t capacity = 1 << 20;
   size_t fingerprint_size = 2;
@@ -80,6 +84,7 @@ TEST_CASE("false positive test", "[cuculiform]") {
   // failed_rebucketing
   size_t num_contained = 0;
   size_t missing_elements = 0;
+
   for (size_t i = 0; i < num_insertions; i++) {
     if (filter.contains(i)) {
       num_contained++;
@@ -88,6 +93,7 @@ TEST_CASE("false positive test", "[cuculiform]") {
       std::cout << "evicted element: " << i << std::endl;
     }
   }
+
   REQUIRE(missing_elements <= static_cast<size_t>(failed_rebucketing));
   REQUIRE(num_insertions - failed_rebucketing <= num_contained);
 
@@ -96,11 +102,20 @@ TEST_CASE("false positive test", "[cuculiform]") {
   // therefore a false positive.
   size_t false_queries = 0;
   size_t queries = capacity;
+  std::chrono::time_point<std::chrono::system_clock> start, end;
+  start = std::chrono::system_clock::now();
+
   for (size_t i = capacity; i < capacity + queries; i++) {
     if (filter.contains(i)) {
       false_queries += 1;
     }
   }
+
+  end = std::chrono::system_clock::now();
+  int elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>
+                           (end-start).count();
+  std::cout << "elapsed time: " << elapsed_time << "ms\n";
+
   double false_positive_rate =
     static_cast<double>(false_queries) / static_cast<double>(queries);
 
