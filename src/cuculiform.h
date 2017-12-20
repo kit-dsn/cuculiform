@@ -177,17 +177,17 @@ public:
     assert(m_fingerprint_size <= 4);
 
     // for partial hashing to work, i.e. not generate invalid bucket indexes.
-    size_t num_buckets = ceil_to_power_of_two(m_capacity);
+    size_t num_buckets = ceil_to_power_of_two(m_capacity / m_bucket_size);
 
     Bucket empty_bucket{m_bucket_size, m_fingerprint_size};
     m_buckets = std::vector<Bucket>(num_buckets, empty_bucket);
 
-    std::random_device
-      rd; // Will be used to obtain a seed for the random number engine
+    // Will be used to obtain a seed for the random number engine
+    std::random_device rd;
     auto seed = rd();
     /* auto seed = 1115641093; */
-    gen =
-      std::mt19937(seed); // Standard mersenne_twister_engine seeded with rd()
+    // Standard mersenne_twister_engine seeded with rd()
+    gen = std::mt19937(seed);
   }
 
   bool insert(const T item);
