@@ -247,7 +247,12 @@ inline Bucket::const_iterator Bucket::cend() const {
 }
 
 inline bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
-  auto empty_fingerprint = std::vector<uint8_t>(fingerprint.size(), 0);
+  // TODO: can empty_fingerprint (and empty_chunk) be allocated once as static
+  // member variable so that it is allocated only once? Problem is, we don't
+  // know the m_fingerprint_size for a static member variable of Bucket, and
+  // can't use template parameters because then we'd need dynamic dispatch to
+  // the right bucket variant in CuckooFilter. :/
+  auto empty_fingerprint = std::vector<uint8_t>(m_fingerprint_size, 0);
   assert(empty_fingerprint != fingerprint);
   auto empty_chunk =
     iterator::value_type(empty_fingerprint.begin(), empty_fingerprint.end());
@@ -545,8 +550,9 @@ inline std::ostream& operator<<(std::ostream& out,
          fingerprint_index++) {
       for (size_t byte_index = 0; byte_index < filter.m_fingerprint_size;
            byte_index++) {
-        // cast from uint8_t to uint16_t to avoid garbage output because uint8_t is a typedef for unsigned char
-        // and << is overloaded for chars to print those values as characters. Seems like there is no other way.
+        // cast from uint8_t to uint16_t to avoid garbage output because uint8_t
+        // is a typedef for unsigned char and << is overloaded for chars to
+        // print those values as characters. Seems like there is no other way.
         out << static_cast<uint16_t>(
           filter.m_data[bucket_index * filter.m_bucket_size
                         + fingerprint_index * filter.m_fingerprint_size
