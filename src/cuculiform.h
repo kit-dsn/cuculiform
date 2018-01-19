@@ -342,6 +342,7 @@ private:
   size_t m_size;
   std::vector<uint8_t> m_data;
   const size_t m_capacity;
+  // number of fingerprints that fit in a bucket
   const size_t m_bucket_size;
   const size_t m_bucket_count;
   const size_t m_fingerprint_size;
@@ -414,14 +415,14 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   std::vector<uint8_t> fingerprint_vec =
     into_bytes(fingerprint, m_fingerprint_size);
 
-  // Apply % buckets.size() now and not later on operation execution.
+  // Apply % m_bucket_count now and not later on operation execution.
   // If done later, this is probably the cause for items "vanishing", which,
   // turns out, actually means they're inserted in the wrong bucket on
   // relocation and therefore are not found when being checked after them. This
   // happens because get_alt_index returns other values when inserting vs. when
   // relocating, because relocation uses the index of the element that gets
   // relocated instead of computing it from the actual element. If applying
-  // modulo early / having a buckets.size() wich is a power of two, those
+  // modulo early / having a m_bucket_count wich is a power of two, those
   // indexes are equivalent. Strange: In contrast to the reference
   // implementation, the rust implementation applies the modulo on operation
   // execution and apparently does work as well.
@@ -530,12 +531,13 @@ inline size_t CuckooFilter<T>::memory_usage() const {
 
 template <typename T>
 inline void CuckooFilter<T>::memory_usage_info() const {
-  std::cerr << "== Cuckoofilter memory usage broken up: ==" << std::endl;
+  std::cerr << "== CuckooFilter memory usage broken up: ==" << std::endl;
   std::cerr << "sizeof CuckooFilter struct: " << sizeof(CuckooFilter<T>) << "B"
             << std::endl;
   std::cerr << "number of buckets: " << m_bucket_count << std::endl;
-  std::cerr << "single bucket memory usage: " << sizeof(uint8_t) * m_bucket_size
-            << "B" << std::endl;
+  std::cerr << "single bucket memory usage: "
+            << sizeof(uint8_t) * m_bucket_size * m_fingerprint_size << "B"
+            << std::endl;
   std::cerr << "==========================================" << std::endl;
 }
 
@@ -555,6 +557,7 @@ inline std::ostream& operator<<(std::ostream& out,
         // print those values as characters. Seems like there is no other way.
         out << static_cast<uint16_t>(
           filter.m_data[bucket_index * filter.m_bucket_size
+                          * filter.m_fingerprint_size
                         + fingerprint_index * filter.m_fingerprint_size
                         + byte_index]);
       }
