@@ -60,6 +60,32 @@ inline uint64_t highwayhash(size_t value) {
   return static_cast<uint64_t>(result);
 }
 
+// TODO: almost copied from cuckoofilter, reimplement from scratch?
+// TODO: is 128bit really needed? Check paper / other implementations.
+// Taken from:
+// https://github.com/efficient/cuckoofilter/blob/master/src/hashutil.h#L49
+// See Martin Dietzfelbinger, "Universal hashing and k-wise independent random
+// variables via integer arithmetic without primes".
+class TwoIndependentMultiplyShift {
+  unsigned __int128 multiply, add;
+
+public:
+  TwoIndependentMultiplyShift() {
+    std::random_device random;
+    for (auto v : {&multiply, &add}) {
+      *v = random();
+      for (int i = 0; i < 4; ++i) {
+        *v = *v << 32;
+        *v |= random();
+      }
+    }
+  }
+
+  uint64_t operator()(uint64_t value) const {
+    return (add + multiply * static_cast<decltype(multiply)>(value)) >> 64;
+  }
+};
+
 typedef std::vector<uint8_t> Fingerprint; // TODO: Use it?
 
 template <class It>
