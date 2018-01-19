@@ -323,7 +323,7 @@ template <typename T>
 class CuckooFilter {
 public:
   explicit CuckooFilter(
-    size_t capacity, size_t fingerprint_size, uint max_relocations = 10,
+    size_t capacity, size_t fingerprint_size, uint max_relocations = 500,
     std::function<uint64_t(size_t)> strong_hash_fn = highwayhash)
       : m_size(0),
         m_capacity(capacity),
