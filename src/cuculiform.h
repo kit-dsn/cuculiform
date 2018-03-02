@@ -1,13 +1,16 @@
 #pragma once
 
+#include "chunked_iterator.h"
 #include <algorithm>
 #include <assert.h>
 #include <functional>
 #include <random>
+#include <vector>
 
 #include "highwayhash/highwayhash.h"
 
 using namespace highwayhash;
+using namespace chunked_iterator;
 
 namespace cuculiform {
 
@@ -59,16 +62,50 @@ inline uint64_t highwayhash(size_t value) {
   return static_cast<uint64_t>(result);
 }
 
-typedef std::vector<uint8_t> Fingerprint; // TODO: Use it?
+// TODO: almost copied from cuckoofilter, reimplement from scratch?
+// TODO: is 128bit really needed? Check paper / other implementations.
+// Taken from:
+// https://github.com/efficient/cuckoofilter/blob/master/src/hashutil.h#L49
+// See Martin Dietzfelbinger, "Universal hashing and k-wise independent random
+// variables via integer arithmetic without primes".
+class TwoIndependentMultiplyShift {
+  unsigned __int128 multiply, add;
 
-struct Bucket {
-  explicit Bucket(size_t bucket_size, size_t fingerprint_size) {
-    auto empty_fingerprint = std::vector<uint8_t>(fingerprint_size, 0);
-    m_fingerprints =
-      std::vector<std::vector<uint8_t>>(bucket_size, empty_fingerprint);
+public:
+  TwoIndependentMultiplyShift() {
+    std::random_device random;
+    for (auto v : {&multiply, &add}) {
+      *v = random();
+      for (int i = 0; i < 4; ++i) {
+        *v = *v << 32;
+        *v |= random();
+      }
+    }
   }
 
-  std::vector<std::vector<uint8_t>> m_fingerprints;
+  uint64_t operator()(uint64_t value) const {
+    return (add + multiply * static_cast<decltype(multiply)>(value)) >> 64;
+  }
+};
+
+typedef std::vector<uint8_t> Fingerprint; // TODO: Use it?
+
+class Bucket {
+public:
+  using iterator = ChunkedIterator<std::vector<uint8_t>::iterator>;
+  using const_iterator = ChunkedIterator<std::vector<uint8_t>::const_iterator>;
+
+  explicit Bucket(std::vector<uint8_t>::iterator begin,
+                  std::vector<uint8_t>::iterator end, size_t fingerprint_size)
+      : m_begin(begin), m_end(end), m_fingerprint_size(fingerprint_size) {
+  }
+
+  iterator begin();
+  iterator end();
+  const_iterator begin() const;
+  const_iterator end() const;
+  const_iterator cbegin() const;
+  const_iterator cend() const;
 
   bool insert(const std::vector<uint8_t> fingerprint);
   void swap(std::vector<uint8_t>& fingerprint, size_t index);
@@ -76,98 +113,95 @@ struct Bucket {
   bool erase(const std::vector<uint8_t> fingerprint);
   void clear();
 
-  size_t memory_usage() const;
-  void memory_usage_info() const;
-
-  friend std::ostream& operator<<(std::ostream& out, const Bucket& bucket);
+private:
+  // TODO: misleading name,
+  // could be thought this is the same as begin() and end()
+  std::vector<uint8_t>::iterator m_begin;
+  std::vector<uint8_t>::iterator m_end;
+  const size_t m_fingerprint_size;
 };
 
+inline Bucket::iterator Bucket::begin() {
+  return iterator(m_begin, m_fingerprint_size, 0);
+}
+inline Bucket::iterator Bucket::end() {
+  return iterator(m_begin, m_fingerprint_size,
+                  std::distance(m_begin, m_end) / m_fingerprint_size);
+}
+inline Bucket::const_iterator Bucket::begin() const {
+  return const_iterator(m_begin, m_fingerprint_size, 0);
+}
+inline Bucket::const_iterator Bucket::end() const {
+  return const_iterator(m_begin, m_fingerprint_size,
+                        std::distance(m_begin, m_end) / m_fingerprint_size);
+}
+inline Bucket::const_iterator Bucket::cbegin() const {
+  return const_iterator(m_begin, m_fingerprint_size, 0);
+}
+inline Bucket::const_iterator Bucket::cend() const {
+  return const_iterator(m_begin, m_fingerprint_size,
+                        std::distance(m_begin, m_end));
+}
+
 inline bool Bucket::insert(const std::vector<uint8_t> fingerprint) {
-  auto empty_fingerprint = std::vector<uint8_t>(fingerprint.size(), 0);
+  // TODO: can empty_fingerprint (and empty_chunk) be allocated once as static
+  // member variable so that it is allocated only once? Problem is, we don't
+  // know the m_fingerprint_size for a static member variable of Bucket, and
+  // can't use template parameters because then we'd need dynamic dispatch to
+  // the right bucket variant in CuckooFilter. :/
+  auto empty_fingerprint = std::vector<uint8_t>(m_fingerprint_size, 0);
   assert(empty_fingerprint != fingerprint);
-  auto position =
-    std::find(m_fingerprints.begin(), m_fingerprints.end(), empty_fingerprint);
-  bool has_empty_position = position != m_fingerprints.end();
+  auto empty_chunk =
+    iterator::value_type(empty_fingerprint.begin(), empty_fingerprint.end());
+  auto position = std::find(begin(), end(), empty_chunk);
+  bool has_empty_position = position != end();
   if (has_empty_position) {
     // found empty position, insert by bytewise-copying the fingerprint into
     // that slot
-    std::copy(fingerprint.begin(), fingerprint.end(), position->begin());
+    std::copy(fingerprint.begin(), fingerprint.end(), position->begin);
   }
   return has_empty_position;
 }
 
 inline void Bucket::swap(std::vector<uint8_t>& fingerprint, size_t index) {
-  std::swap(m_fingerprints[index], fingerprint);
+  auto chunk = begin()[index];
+  // NOTE: could be done with std::swap if Chunk were copy / move constructible
+  // from argument
+  std::swap_ranges(fingerprint.begin(), fingerprint.end(), chunk.begin);
 }
 
 inline bool Bucket::contains(const std::vector<uint8_t> fingerprint) const {
-  auto position =
-    std::find(m_fingerprints.begin(), m_fingerprints.end(), fingerprint);
-  return position != m_fingerprints.end();
+  // NOTE: is value_type semantically correct? Should it be ::reference instead?
+  // (doesn't matter though, both is Chunk)
+  auto chunk =
+    const_iterator::value_type(fingerprint.begin(), fingerprint.end());
+  auto position = std::find(cbegin(), cend(), chunk);
+  return position != cend();
 }
 
-inline bool Bucket::erase(const std::vector<uint8_t> fingerprint) {
-  auto position =
-    std::find(m_fingerprints.begin(), m_fingerprints.end(), fingerprint);
-  bool has_fingerprint = position != m_fingerprints.end();
+inline bool Bucket::erase(std::vector<uint8_t> fingerprint) {
+  auto chunk = iterator::value_type(fingerprint.begin(), fingerprint.end());
+  auto position = std::find(begin(), end(), chunk);
+  bool has_fingerprint = position != end();
   if (has_fingerprint) {
     // found that fingerprint, delete it by filling its slot with zeros
-    std::fill(position->begin(), position->end(), 0);
+    std::fill(position->begin, position->end, 0);
   }
   return has_fingerprint;
-}
-
-inline void Bucket::clear() {
-  std::for_each(m_fingerprints.begin(), m_fingerprints.end(),
-                [](std::vector<uint8_t>& fingerprint) {
-                  std::fill(fingerprint.begin(), fingerprint.end(), 0);
-                });
-}
-
-inline size_t Bucket::memory_usage() const {
-  // (sizeof actually takes array-like padding into account)
-  // assert that all Buckets have the same memory usage:
-  size_t reserved_fingerprint_size = sizeof(m_fingerprints[0]);
-  size_t used_fingerprint_size =
-    reserved_fingerprint_size + m_fingerprints[0].capacity() * sizeof(uint8_t);
-  return sizeof(Bucket) + used_fingerprint_size * m_fingerprints.size()
-         + reserved_fingerprint_size
-             * (m_fingerprints.capacity() - m_fingerprints.size());
-}
-
-inline void Bucket::memory_usage_info() const {
-  std::cerr << "== Bucket memory usage broken up: ==" << std::endl;
-  std::cerr << "sizeof Bucket struct: " << sizeof(Bucket) << "B" << std::endl;
-  std::cerr << "number of used fingerprints: " << m_fingerprints.size()
-            << std::endl;
-  std::cerr << "number of excess fingerprints: "
-            << m_fingerprints.capacity() - m_fingerprints.size() << std::endl;
-  std::cerr << "single used fingerprint memory usage: "
-            << sizeof(m_fingerprints[0])
-                 + m_fingerprints[0].capacity() * sizeof(uint8_t)
-            << "B" << std::endl;
-  std::cerr << "single unused fingerprint memory usage: "
-            << sizeof(m_fingerprints[0]) << "B" << std::endl;
-}
-
-inline std::ostream& operator<<(std::ostream& out, const Bucket& bucket) {
-  out << "{ " << std::hex;
-  for (const auto& fingerprint : bucket.m_fingerprints) {
-    out << from_bytes(fingerprint) << ", ";
-  }
-  out << "}" << std::dec;
-  return out;
 }
 
 template <typename T>
 class CuckooFilter {
 public:
   explicit CuckooFilter(
-    size_t capacity, size_t fingerprint_size, uint max_relocations = 10,
+    size_t capacity, size_t fingerprint_size, uint max_relocations = 500,
     std::function<uint64_t(size_t)> strong_hash_fn = highwayhash)
       : m_size(0),
         m_capacity(capacity),
         m_bucket_size(4),
+        // for partial hashing to work, i.e. not generate invalid bucket
+        // indexes.
+        m_bucket_count(ceil_to_power_of_two(m_capacity / m_bucket_size)),
         m_fingerprint_size(fingerprint_size),
         m_max_relocations(max_relocations),
         m_strong_hash_fn(strong_hash_fn),
@@ -176,16 +210,14 @@ public:
     assert(m_fingerprint_size > 0);
     assert(m_fingerprint_size <= 4);
 
-    // for partial hashing to work, i.e. not generate invalid bucket indexes.
-    size_t num_buckets = ceil_to_power_of_two(m_capacity / m_bucket_size);
-
-    Bucket empty_bucket{m_bucket_size, m_fingerprint_size};
-    m_buckets = std::vector<Bucket>(num_buckets, empty_bucket);
+    m_data = std::vector<uint8_t>(m_capacity * fingerprint_size,
+                                  static_cast<uint8_t>(0));
 
     // Will be used to obtain a seed for the random number engine
     std::random_device rd;
     auto seed = rd();
-    /* auto seed = 1115641093; */
+    /* auto seed = 3377404304; */
+    /* std::cerr << "seed: " << seed << std::endl; */
     // Standard mersenne_twister_engine seeded with rd()
     gen = std::mt19937(seed);
   }
@@ -205,9 +237,11 @@ public:
 
 private:
   size_t m_size;
-  std::vector<Bucket> m_buckets;
+  std::vector<uint8_t> m_data;
   const size_t m_capacity;
+  // number of fingerprints that fit in a bucket
   const size_t m_bucket_size;
+  const size_t m_bucket_count;
   const size_t m_fingerprint_size;
   const uint m_max_relocations;
   const std::function<uint64_t(size_t)> m_strong_hash_fn;
@@ -218,6 +252,24 @@ private:
   size_t get_alt_index(const size_t index, const Fingerprint fingerprint) const;
   std::tuple<size_t, size_t, Fingerprint>
   get_indexes_and_fingerprint_for(const T item) const;
+
+  Bucket get_bucket(const size_t index) {
+    return Bucket(
+      std::next(m_data.begin(), index * m_bucket_size * m_fingerprint_size),
+      std::next(m_data.begin(),
+                (index + 1) * m_bucket_size * m_fingerprint_size),
+      m_fingerprint_size);
+  }
+  const Bucket get_bucket(const size_t index) const {
+    // yes this is cheating around not being able to create a Bucket with const
+    // iterators, but should work because we return a const bucket
+    auto& data_noconst = const_cast<std::vector<uint8_t>&>(m_data);
+    return Bucket(std::next(data_noconst.begin(),
+                            index * m_bucket_size * m_fingerprint_size),
+                  std::next(data_noconst.begin(),
+                            (index + 1) * m_bucket_size * m_fingerprint_size),
+                  m_fingerprint_size);
+  }
 };
 
 template <typename T>
@@ -229,7 +281,7 @@ CuckooFilter<T>::get_alt_index(const size_t index,
   size_t alt_index =
     index
     ^ (static_cast<uint32_t>(m_strong_hash_fn(fingerprint_linear))
-       % m_buckets.size());
+       % m_bucket_count);
 
   return alt_index;
 }
@@ -260,18 +312,18 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   std::vector<uint8_t> fingerprint_vec =
     into_bytes(fingerprint, m_fingerprint_size);
 
-  // Apply % buckets.size() now and not later on operation execution.
+  // Apply % m_bucket_count now and not later on operation execution.
   // If done later, this is probably the cause for items "vanishing", which,
   // turns out, actually means they're inserted in the wrong bucket on
   // relocation and therefore are not found when being checked after them. This
   // happens because get_alt_index returns other values when inserting vs. when
   // relocating, because relocation uses the index of the element that gets
   // relocated instead of computing it from the actual element. If applying
-  // modulo early / having a buckets.size() wich is a power of two, those
+  // modulo early / having a m_bucket_count wich is a power of two, those
   // indexes are equivalent. Strange: In contrast to the reference
   // implementation, the rust implementation applies the modulo on operation
   // execution and apparently does work as well.
-  size_t index = index_part % m_buckets.size();
+  size_t index = index_part % m_bucket_count;
   size_t alt_index =
     get_alt_index(index, fingerprint_vec); // TODO: Additional conversion :(
 
@@ -286,12 +338,13 @@ inline bool CuckooFilter<T>::insert(const T item) {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
-  std::tie(index, alt_index, fingerprint) = get_indexes_and_fingerprint_for(item);
+  std::tie(index, alt_index, fingerprint) =
+    get_indexes_and_fingerprint_for(item);
 
   assert(index == get_alt_index(alt_index, fingerprint));
 
   size_t index_to_insert = index_dis(gen) ? index : alt_index;
-  bool inserted = m_buckets[index_to_insert].insert(fingerprint);
+  bool inserted = get_bucket(index_to_insert).insert(fingerprint);
   if (inserted) {
     m_size++;
     return true;
@@ -301,16 +354,14 @@ inline bool CuckooFilter<T>::insert(const T item) {
   Fingerprint fp_to_insert = fingerprint;
   index_to_insert = get_alt_index(index_to_insert, fp_to_insert);
   for (uint i = 0; i < m_max_relocations; i++) {
-    bool inserted = m_buckets[index_to_insert].insert(fp_to_insert);
+    auto bucket = get_bucket(index_to_insert);
+    bool inserted = bucket.insert(fp_to_insert);
     if (inserted) {
       m_size++;
       return true;
     } else {
-
       size_t which_fingerprint_to_relocate = bucket_dis(gen);
-
-      m_buckets[index_to_insert].swap(fp_to_insert,
-                                      which_fingerprint_to_relocate);
+      bucket.swap(fp_to_insert, which_fingerprint_to_relocate);
 
       index_to_insert = get_alt_index(index_to_insert, fp_to_insert);
     }
@@ -326,13 +377,14 @@ inline bool CuckooFilter<T>::contains(const T item) const {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
-  std::tie(index, alt_index, fingerprint) = get_indexes_and_fingerprint_for(item);
+  std::tie(index, alt_index, fingerprint) =
+    get_indexes_and_fingerprint_for(item);
 
   assert(alt_index == get_alt_index(index, fingerprint));
   assert(index == get_alt_index(alt_index, fingerprint));
 
-  bool contained = m_buckets[index].contains(fingerprint)
-                   || m_buckets[alt_index].contains(fingerprint);
+  bool contained = get_bucket(index).contains(fingerprint)
+                   || get_bucket(alt_index).contains(fingerprint);
   return contained;
 }
 
@@ -341,11 +393,12 @@ inline bool CuckooFilter<T>::erase(const T item) {
   size_t index;
   size_t alt_index;
   std::vector<uint8_t> fingerprint;
-  std::tie(index, alt_index, fingerprint) = get_indexes_and_fingerprint_for(item);
+  std::tie(index, alt_index, fingerprint) =
+    get_indexes_and_fingerprint_for(item);
 
   // TODO: Same element removed two times?
-  bool erased = m_buckets[index].erase(fingerprint)
-                || m_buckets[alt_index].erase(fingerprint);
+  bool erased = get_bucket(index).erase(fingerprint)
+                || get_bucket(alt_index).erase(fingerprint);
   if (erased) {
     m_size--;
   }
@@ -354,8 +407,7 @@ inline bool CuckooFilter<T>::erase(const T item) {
 
 template <typename T>
 inline void CuckooFilter<T>::clear() {
-  std::for_each(m_buckets.begin(), m_buckets.end(),
-                [](Bucket& bucket) { bucket.clear(); });
+  std::fill(std::begin(m_data), std::end(m_data), 0);
   m_size = 0;
 }
 
@@ -371,38 +423,46 @@ inline size_t CuckooFilter<T>::capacity() const {
 
 template <typename T>
 inline size_t CuckooFilter<T>::memory_usage() const {
-  // (sizeof actually takes array-like padding into account)
-  // assert that all Buckets have the same memory usage:
-  size_t reserved_bucket_size = sizeof(Bucket);
-  size_t used_bucket_size = m_buckets[0].memory_usage();
-  return sizeof(CuckooFilter<T>) + used_bucket_size * m_buckets.size()
-         + reserved_bucket_size * (m_buckets.capacity() - m_buckets.size());
+  return sizeof(CuckooFilter<T>) + sizeof(uint8_t) * m_data.size();
 }
 
 template <typename T>
 inline void CuckooFilter<T>::memory_usage_info() const {
-  std::cerr << "== Cuckoofilter memory usage broken up: ==" << std::endl;
+  std::cerr << "== CuckooFilter memory usage broken up: ==" << std::endl;
   std::cerr << "sizeof CuckooFilter struct: " << sizeof(CuckooFilter<T>) << "B"
             << std::endl;
-  std::cerr << "number of used buckets: " << m_buckets.size() << std::endl;
-  std::cerr << "number of excess buckets: "
-            << m_buckets.capacity() - m_buckets.size() << std::endl;
-  std::cerr << "single used bucket memory usage: "
-            << m_buckets[0].memory_usage() << "B" << std::endl;
-  std::cerr << "single unused bucket memory usage: " << sizeof(Bucket) << "B"
+  std::cerr << "number of buckets: " << m_bucket_count << std::endl;
+  std::cerr << "single bucket memory usage: "
+            << sizeof(uint8_t) * m_bucket_size * m_fingerprint_size << "B"
             << std::endl;
-  m_buckets[0].memory_usage_info();
   std::cerr << "==========================================" << std::endl;
 }
 
 template <typename T>
 inline std::ostream& operator<<(std::ostream& out,
                                 const CuckooFilter<T>& filter) {
-  out << "{" << std::endl;
-  for (const auto& bucket : filter.m_buckets) {
-    out << "  " << bucket << std::endl;
+  out << "{" << std::hex << std::endl;
+  for (size_t bucket_index = 0; bucket_index < filter.m_bucket_count;
+       bucket_index++) {
+    out << "  {";
+    for (size_t fingerprint_index = 0; fingerprint_index < filter.m_bucket_size;
+         fingerprint_index++) {
+      for (size_t byte_index = 0; byte_index < filter.m_fingerprint_size;
+           byte_index++) {
+        // cast from uint8_t to uint16_t to avoid garbage output because uint8_t
+        // is a typedef for unsigned char and << is overloaded for chars to
+        // print those values as characters. Seems like there is no other way.
+        out << static_cast<uint16_t>(
+          filter.m_data[bucket_index * filter.m_bucket_size
+                          * filter.m_fingerprint_size
+                        + fingerprint_index * filter.m_fingerprint_size
+                        + byte_index]);
+      }
+      out << ", ";
+    }
+    out << "}," << std::endl;
   }
-  out << "}" << std::endl;
+  out << "}" << std::dec << std::endl;
   return out;
 }
 

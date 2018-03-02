@@ -55,10 +55,11 @@ TEST_CASE("string cuckoofilter", "[cuculiform]") {
   REQUIRE(filter.contains("helloworld") == false);
 }
 
-
 TEST_CASE("false positive test", "[cuculiform]") {
   size_t capacity = 1 << 20;
   size_t fingerprint_size = 2;
+  /* cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size, 500,
+   * cuculiform::TwoIndependentMultiplyShift{}}; */
   cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size};
 
   size_t num_insertions = 0;
@@ -112,9 +113,12 @@ TEST_CASE("false positive test", "[cuculiform]") {
   }
 
   end = std::chrono::system_clock::now();
-  int elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>
-                           (end-start).count();
+  int elapsed_time =
+    std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+  double time_per_contain = (static_cast<double>(elapsed_time) * 1000.0)
+                            / static_cast<double>(num_contained);
   std::cout << "elapsed time: " << elapsed_time << "ms\n";
+  std::cout << "time per contain operation: " << time_per_contain << "μs\n";
 
   double false_positive_rate =
     static_cast<double>(false_queries) / static_cast<double>(queries);
@@ -127,9 +131,15 @@ TEST_CASE("false positive test", "[cuculiform]") {
   std::cout << "elements contained:   " << num_contained << std::endl;
   // TODO: REQUIRE some memory usage value or range
   size_t memory_usage_KiB = filter.memory_usage() / 1024;
+  double memory_usage_per_element = static_cast<double>(filter.memory_usage())
+                                    / static_cast<double>(num_contained);
   std::cout << "memory usage: " << memory_usage_KiB << "KiB" << std::endl;
   std::cout << "lower bound on memory usage: "
             << (capacity * fingerprint_size) / 1024 << "KiB" << std::endl;
+  std::cout << "memory usage per element: " << memory_usage_per_element << "B"
+            << std::endl;
+  std::cout << "lower bound on memory usage per element: " << fingerprint_size
+            << "B" << std::endl;
   filter.memory_usage_info();
   std::cout << "filter is at "
             << (num_insertions - failed_rebucketing)
