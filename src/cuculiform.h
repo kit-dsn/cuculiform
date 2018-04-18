@@ -195,7 +195,7 @@ class CuckooFilter {
 public:
   explicit CuckooFilter(
     size_t capacity, size_t fingerprint_size, uint max_relocations = 500,
-    std::function<uint64_t(size_t)> strong_hash_fn = highwayhash)
+    std::function<uint64_t(size_t)> strong_hash_fn = cuculiform::TwoIndependentMultiplyShift{})
       : m_size(0),
         m_capacity(capacity),
         m_bucket_size(4),
