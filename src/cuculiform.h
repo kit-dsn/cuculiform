@@ -248,6 +248,7 @@ private:
   std::uniform_int_distribution<> index_dis;
   std::uniform_int_distribution<> bucket_dis;
 
+  size_t get_alt_index(const size_t index, const uint32_t fingerprint_linear) const;
   size_t get_alt_index(const size_t index, const Fingerprint fingerprint) const;
   std::tuple<size_t, size_t, Fingerprint>
   get_indexes_and_fingerprint_for(const T item) const;
@@ -274,15 +275,21 @@ private:
 template <typename T>
 inline size_t
 CuckooFilter<T>::get_alt_index(const size_t index,
-                               const Fingerprint fingerprint) const {
-  uint32_t fingerprint_linear = from_bytes(fingerprint);
-
+                               const uint32_t fingerprint_linear) const {
   size_t alt_index =
     index
     ^ (static_cast<uint32_t>(m_strong_hash_fn(fingerprint_linear))
        % m_bucket_count);
 
   return alt_index;
+}
+
+template <typename T>
+inline size_t
+CuckooFilter<T>::get_alt_index(const size_t index,
+                               const Fingerprint fingerprint) const {
+  uint32_t fingerprint_linear = from_bytes(fingerprint);
+  return get_alt_index(index, fingerprint_linear);
 }
 
 template <typename T>
@@ -324,7 +331,7 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   // execution and apparently does work as well.
   size_t index = index_part % m_bucket_count;
   size_t alt_index =
-    get_alt_index(index, fingerprint_vec); // TODO: Additional conversion :(
+    get_alt_index(index, fingerprint);
 
   assert(index == get_alt_index(alt_index, fingerprint_vec));
 
