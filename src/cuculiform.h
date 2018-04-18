@@ -238,12 +238,11 @@ public:
 private:
   size_t m_size;
   std::vector<uint8_t> m_data;
-  const size_t m_capacity;
-  // number of fingerprints that fit in a bucket
-  const size_t m_bucket_size;
-  const size_t m_bucket_count;
-  const size_t m_fingerprint_size;
-  const uint m_max_relocations;
+  const size_t m_capacity;       // total number of fingerprints in the filter
+  const size_t m_bucket_size;    // number of fingerprints that fit in a bucket
+  const size_t m_bucket_count;   // number of buckets in the filter
+  const size_t m_fingerprint_size;  // size of the fingerprint in bytes
+  const uint m_max_relocations;     // max number of relocations before filled
   const std::function<uint64_t(size_t)> m_strong_hash_fn;
   std::mt19937 gen; // Standard mersenne_twister_engine seeded with rd()
   std::uniform_int_distribution<> index_dis;
