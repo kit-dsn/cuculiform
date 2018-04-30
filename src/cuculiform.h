@@ -310,8 +310,6 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   uint32_t fingerprint = fingerprint_part >> (32 - m_fingerprint_size * 8);
   if (fingerprint == 0) {
     fingerprint = 1;
-    std::cerr << "Fingerprint collision with 0 on element " << item
-              << std::endl;
   }
   assert(fingerprint != 0);
 
