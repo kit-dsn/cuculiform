@@ -388,13 +388,9 @@ inline bool CuckooFilter<T>::contains(const T item) const {
   assert(alt_index == get_alt_index(index, fingerprint));
   assert(index == get_alt_index(alt_index, fingerprint));
 
-  for (int i = 0; i < m_bucket_size; i++) {
-    if (get_bucket(index)[i] == fingerprint
-        || get_bucket(alt_index)[i] == fingerprint) {
-      return true;
-    }
-  }
-  return false;
+  bool contained = get_bucket(index).contains(fingerprint)
+                   || get_bucket(alt_index).contains(fingerprint);
+  return contained;
 }
 
 template <typename T>
