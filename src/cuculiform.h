@@ -193,9 +193,10 @@ inline bool Bucket::erase(std::vector<uint8_t> fingerprint) {
 template <typename T>
 class CuckooFilter {
 public:
-  explicit CuckooFilter(
-    size_t capacity, size_t fingerprint_size, uint max_relocations = 500,
-    std::function<uint64_t(size_t)> strong_hash_fn = cuculiform::TwoIndependentMultiplyShift{})
+  explicit CuckooFilter(size_t capacity, size_t fingerprint_size,
+                        uint max_relocations = 500,
+                        std::function<uint64_t(size_t)> strong_hash_fn =
+                          cuculiform::TwoIndependentMultiplyShift{})
       : m_size(0),
         m_capacity(capacity),
         m_bucket_size(4),
@@ -238,17 +239,18 @@ public:
 private:
   size_t m_size;
   std::vector<uint8_t> m_data;
-  const size_t m_capacity;       // total number of fingerprints in the filter
-  const size_t m_bucket_size;    // number of fingerprints that fit in a bucket
-  const size_t m_bucket_count;   // number of buckets in the filter
-  const size_t m_fingerprint_size;  // size of the fingerprint in bytes
-  const uint m_max_relocations;     // max number of relocations before filled
+  const size_t m_capacity;     // total number of fingerprints in the filter
+  const size_t m_bucket_size;  // number of fingerprints that fit in a bucket
+  const size_t m_bucket_count; // number of buckets in the filter
+  const size_t m_fingerprint_size; // size of the fingerprint in bytes
+  const uint m_max_relocations;    // max number of relocations before filled
   const std::function<uint64_t(size_t)> m_strong_hash_fn;
   std::mt19937 gen; // Standard mersenne_twister_engine seeded with rd()
   std::uniform_int_distribution<> index_dis;
   std::uniform_int_distribution<> bucket_dis;
 
-  size_t get_alt_index(const size_t index, const uint32_t fingerprint_linear) const;
+  size_t get_alt_index(const size_t index,
+                       const uint32_t fingerprint_linear) const;
   size_t get_alt_index(const size_t index, const Fingerprint fingerprint) const;
   std::tuple<size_t, size_t, Fingerprint>
   get_indexes_and_fingerprint_for(const T item) const;
@@ -328,8 +330,7 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   // implementation, the rust implementation applies the modulo on operation
   // execution and apparently does work as well.
   size_t index = index_part % m_bucket_count;
-  size_t alt_index =
-    get_alt_index(index, fingerprint);
+  size_t alt_index = get_alt_index(index, fingerprint);
 
   assert(index == get_alt_index(alt_index, fingerprint_vec));
 
@@ -388,8 +389,8 @@ inline bool CuckooFilter<T>::contains(const T item) const {
   assert(index == get_alt_index(alt_index, fingerprint));
 
   for (int i = 0; i < m_bucket_size; i++) {
-    if (get_bucket(index)[i] == fingerprint ||
-        get_bucket(alt_index)[i] == fingerprint) {
+    if (get_bucket(index)[i] == fingerprint
+        || get_bucket(alt_index)[i] == fingerprint) {
       return true;
     }
   }
