@@ -205,7 +205,7 @@ public:
         m_bucket_count(ceil_to_power_of_two(m_capacity / m_bucket_size)),
         m_fingerprint_size(fingerprint_size),
         m_max_relocations(max_relocations),
-        m_strong_hash_fn(strong_hash_fn),
+        m_cuckoo_hash_fn(strong_hash_fn),
         index_dis(0, 1),
         bucket_dis(0, m_bucket_size - 1) {
     assert(m_fingerprint_size > 0);
@@ -244,8 +244,9 @@ private:
   const size_t m_bucket_count; // number of buckets in the filter
   const size_t m_fingerprint_size; // size of the fingerprint in bytes
   const uint m_max_relocations;    // max number of relocations before filled
-  const std::function<uint64_t(size_t)> m_strong_hash_fn;
-  std::mt19937 gen; // Standard mersenne_twister_engine seeded with rd()
+  const std::function<uint64_t(size_t)>
+    m_cuckoo_hash_fn; // hash function used for partial cuckoo hashing
+  std::mt19937 gen;   // Standard mersenne_twister_engine seeded with rd()
   std::uniform_int_distribution<> index_dis;
   std::uniform_int_distribution<> bucket_dis;
 
@@ -280,7 +281,7 @@ CuckooFilter<T>::get_alt_index(const size_t index,
                                const uint32_t fingerprint_linear) const {
   size_t alt_index =
     index
-    ^ (static_cast<uint32_t>(m_strong_hash_fn(fingerprint_linear))
+    ^ (static_cast<uint32_t>(m_cuckoo_hash_fn(fingerprint_linear))
        % m_bucket_count);
 
   return alt_index;
@@ -300,9 +301,9 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   // use std::hash to normalize any type to a size_t.
   // Note that it doesn't necessarily produce distributed hashes,
   // i.e. for uints, it might just be the identity function.
-  // To have an equally distributed hash, we then apply a strong hash function.
+  // To have an equally distributed hash, we then apply a chosen hash function.
   std::hash<T> weak_hash_fn;
-  uint64_t hash = m_strong_hash_fn(weak_hash_fn(item));
+  uint64_t hash = m_cuckoo_hash_fn(weak_hash_fn(item));
 
   // split hash to lower and upper half
   const uint32_t fingerprint_part = static_cast<uint32_t>(hash);
@@ -325,7 +326,7 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   // happens because get_alt_index returns other values when inserting vs. when
   // relocating, because relocation uses the index of the element that gets
   // relocated instead of computing it from the actual element. If applying
-  // modulo early / having a m_bucket_count wich is a power of two, those
+  // modulo early / having a m_bucket_count which is a power of two, those
   // indexes are equivalent. Strange: In contrast to the reference
   // implementation, the rust implementation applies the modulo on operation
   // execution and apparently does work as well.
@@ -339,14 +340,15 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
 
 template <typename T>
 inline bool CuckooFilter<T>::insert(const T item) {
-
   size_t index;
   size_t alt_index;
-  std::vector<uint8_t> fingerprint;
+  Fingerprint fingerprint;
+
   std::tie(index, alt_index, fingerprint) =
     get_indexes_and_fingerprint_for(item);
-
   assert(index == get_alt_index(alt_index, fingerprint));
+
+  // TODO: insert two times the same value?
 
   size_t index_to_insert = index_dis(gen) ? index : alt_index;
   bool inserted = get_bucket(index_to_insert).insert(fingerprint);
@@ -355,20 +357,18 @@ inline bool CuckooFilter<T>::insert(const T item) {
     return true;
   }
 
-  // TODO: insert two times the same value?
-  Fingerprint fp_to_insert = fingerprint;
-  index_to_insert = get_alt_index(index_to_insert, fp_to_insert);
+  index_to_insert = get_alt_index(index_to_insert, fingerprint);
   for (uint i = 0; i < m_max_relocations; i++) {
     auto bucket = get_bucket(index_to_insert);
-    bool inserted = bucket.insert(fp_to_insert);
+    bool inserted = bucket.insert(fingerprint);
     if (inserted) {
       m_size++;
       return true;
     } else {
-      size_t which_fingerprint_to_relocate = bucket_dis(gen);
-      bucket.swap(fp_to_insert, which_fingerprint_to_relocate);
+      size_t fingerprint_to_relocate = bucket_dis(gen);
+      bucket.swap(fingerprint, fingerprint_to_relocate);
 
-      index_to_insert = get_alt_index(index_to_insert, fp_to_insert);
+      index_to_insert = get_alt_index(index_to_insert, fingerprint);
     }
   }
 
