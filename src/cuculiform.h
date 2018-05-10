@@ -303,21 +303,16 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   // i.e. for uints, it might just be the identity function.
   // To have an equally distributed hash, we then apply a chosen hash function.
   std::hash<T> weak_hash_fn;
-  uint64_t hash = m_cuckoo_hash_fn(weak_hash_fn(item));
-
-  // split hash to lower and upper half
-  const uint32_t fingerprint_part = static_cast<uint32_t>(hash);
-  const uint32_t index_part = static_cast<uint32_t>(hash >> 32);
+  uint64_t item_hash = weak_hash_fn(item);
+  uint64_t cuckoo_hash = m_cuckoo_hash_fn(item_hash);
+  uint64_t fingerprint =
+    m_cuckoo_hash_fn(item_hash); // FIXME: Wrong hash function!
 
   // only use fingerprint_size bytes of the hash
-  uint32_t fingerprint = fingerprint_part >> (32 - m_fingerprint_size * 8);
+  fingerprint = fingerprint >> (sizeof(fingerprint) - m_fingerprint_size) * 8;
   if (fingerprint == 0) {
     fingerprint = 1;
   }
-  assert(fingerprint != 0);
-
-  std::vector<uint8_t> fingerprint_vec =
-    into_bytes(fingerprint, m_fingerprint_size);
 
   // Apply % m_bucket_count now and not later on operation execution.
   // If done later, this is probably the cause for items "vanishing", which,
@@ -330,9 +325,11 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   // indexes are equivalent. Strange: In contrast to the reference
   // implementation, the rust implementation applies the modulo on operation
   // execution and apparently does work as well.
-  size_t index = index_part % m_bucket_count;
+  size_t index = cuckoo_hash % m_bucket_count;
   size_t alt_index = get_alt_index(index, fingerprint);
 
+  std::vector<uint8_t> fingerprint_vec =
+    into_bytes(fingerprint, m_fingerprint_size);
   assert(index == get_alt_index(alt_index, fingerprint_vec));
 
   return std::make_tuple(index, alt_index, fingerprint_vec);
