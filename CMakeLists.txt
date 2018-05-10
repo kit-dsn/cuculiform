@@ -12,13 +12,16 @@ include_directories(src)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 find_package(HighwayHash REQUIRED)
+find_package(CityHash REQUIRED)
 
 add_library(Catch INTERFACE)
 target_include_directories(Catch INTERFACE tests/catch)
 
 add_executable(cuculiform_tests tests/tests.cc)
 target_include_directories(cuculiform_tests PRIVATE ${HIGHWAYHASH_INCLUDE_DIR})
+target_include_directories(cuculiform_tests PRIVATE ${CITYHASH_INCLUDE_DIR})
 target_link_libraries(cuculiform_tests ${HIGHWAYHASH_LIBRARY})
+target_link_libraries(cuculiform_tests ${CITYHASH_LIBRARY})
 target_link_libraries(cuculiform_tests Catch)
 
 enable_testing()
