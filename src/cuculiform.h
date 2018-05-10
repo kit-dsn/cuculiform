@@ -195,7 +195,9 @@ class CuckooFilter {
 public:
   explicit CuckooFilter(size_t capacity, size_t fingerprint_size,
                         uint max_relocations = 500,
-                        std::function<uint64_t(size_t)> strong_hash_fn =
+                        std::function<uint64_t(size_t)> cuckoo_hash_fn =
+                          cuculiform::TwoIndependentMultiplyShift{},
+                        std::function<uint64_t(size_t)> fingerprint_hash_fn =
                           cuculiform::TwoIndependentMultiplyShift{})
       : m_size(0),
         m_capacity(capacity),
@@ -205,7 +207,8 @@ public:
         m_bucket_count(ceil_to_power_of_two(m_capacity / m_bucket_size)),
         m_fingerprint_size(fingerprint_size),
         m_max_relocations(max_relocations),
-        m_cuckoo_hash_fn(strong_hash_fn),
+        m_cuckoo_hash_fn(cuckoo_hash_fn),
+        m_fingerprint_hash_fn(fingerprint_hash_fn),
         index_dis(0, 1),
         bucket_dis(0, m_bucket_size - 1) {
     assert(m_fingerprint_size > 0);
@@ -246,7 +249,9 @@ private:
   const uint m_max_relocations;    // max number of relocations before filled
   const std::function<uint64_t(size_t)>
     m_cuckoo_hash_fn; // hash function used for partial cuckoo hashing
-  std::mt19937 gen;   // Standard mersenne_twister_engine seeded with rd()
+  const std::function<uint64_t(size_t)>
+    m_fingerprint_hash_fn; // hash function used for fingerprinting
+  std::mt19937 gen;        // Standard mersenne_twister_engine seeded with rd()
   std::uniform_int_distribution<> index_dis;
   std::uniform_int_distribution<> bucket_dis;
 
@@ -305,8 +310,7 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
   std::hash<T> weak_hash_fn;
   uint64_t item_hash = weak_hash_fn(item);
   uint64_t cuckoo_hash = m_cuckoo_hash_fn(item_hash);
-  uint64_t fingerprint =
-    m_cuckoo_hash_fn(item_hash); // FIXME: Wrong hash function!
+  uint64_t fingerprint = m_fingerprint_hash_fn(item_hash);
 
   // only use fingerprint_size bytes of the hash
   fingerprint = fingerprint >> (sizeof(fingerprint) - m_fingerprint_size) * 8;
