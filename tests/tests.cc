@@ -116,7 +116,7 @@ TEST_CASE("false positive test", "[cuculiform]") {
   int elapsed_time =
     std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
   double time_per_contain = (static_cast<double>(elapsed_time) * 1000.0)
-                            / static_cast<double>(num_contained);
+                            / static_cast<double>(queries);
   std::cout << "elapsed time: " << elapsed_time << "ms\n";
   std::cout << "time per contain operation: " << time_per_contain << "μs\n";
 
