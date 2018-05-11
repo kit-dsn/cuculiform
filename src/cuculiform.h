@@ -18,12 +18,11 @@ namespace cuculiform {
 template <typename T>
 class CuckooFilter {
 public:
-  explicit CuckooFilter(size_t capacity, size_t fingerprint_size,
-                        uint max_relocations = 500,
-                        std::function<uint64_t(size_t)> cuckoo_hash_fn =
-                          cuculiform::cityhash,
-                        std::function<uint64_t(size_t)> fingerprint_hash_fn =
-                          cuculiform::TwoIndependentMultiplyShift{})
+  explicit CuckooFilter(
+    size_t capacity, size_t fingerprint_size, uint max_relocations = 500,
+    std::function<uint64_t(size_t)> cuckoo_hash_fn = cuculiform::cityhash,
+    std::function<uint64_t(size_t)> fingerprint_hash_fn =
+      cuculiform::TwoIndependentMultiplyShift{})
       : m_size(0),
         m_capacity(capacity),
         m_bucket_size(4),
@@ -48,7 +47,7 @@ public:
     /* auto seed = 3377404304; */
     /* std::cerr << "seed: " << seed << std::endl; */
     // Standard mersenne_twister_engine seeded with rd()
-    gen = std::mt19937(seed);
+    gen = new std::mt19937(seed);
   }
 
   bool insert(const T item);
@@ -76,7 +75,7 @@ private:
     m_cuckoo_hash_fn; // hash function used for partial cuckoo hashing
   const std::function<uint64_t(size_t)>
     m_fingerprint_hash_fn; // hash function used for fingerprinting
-  std::mt19937 gen;        // Standard mersenne_twister_engine seeded with rd()
+  std::mt19937 *gen;        // Standard mersenne_twister_engine seeded with rd()
   std::uniform_int_distribution<> index_dis;
   std::uniform_int_distribution<> bucket_dis;
 
@@ -86,23 +85,8 @@ private:
   std::tuple<size_t, size_t, Fingerprint>
   get_indexes_and_fingerprint_for(const T item) const;
 
-  Bucket get_bucket(const size_t index) {
-    return Bucket(
-      std::next(m_data.begin(), index * m_bucket_size * m_fingerprint_size),
-      std::next(m_data.begin(),
-                (index + 1) * m_bucket_size * m_fingerprint_size),
-      m_fingerprint_size);
-  }
-  const Bucket get_bucket(const size_t index) const {
-    // yes this is cheating around not being able to create a Bucket with const
-    // iterators, but should work because we return a const bucket
-    auto& data_noconst = const_cast<std::vector<uint8_t>&>(m_data);
-    return Bucket(std::next(data_noconst.begin(),
-                            index * m_bucket_size * m_fingerprint_size),
-                  std::next(data_noconst.begin(),
-                            (index + 1) * m_bucket_size * m_fingerprint_size),
-                  m_fingerprint_size);
-  }
+  Bucket get_bucket(const size_t index);
+  const Bucket get_bucket(const size_t index) const;
 };
 
 template <typename T>
@@ -165,6 +149,26 @@ CuckooFilter<T>::get_indexes_and_fingerprint_for(const T item) const {
 }
 
 template <typename T>
+Bucket CuckooFilter<T>::get_bucket(const size_t index) {
+  return Bucket(
+    std::next(m_data.begin(), index * m_bucket_size * m_fingerprint_size),
+    std::next(m_data.begin(), (index + 1) * m_bucket_size * m_fingerprint_size),
+    m_fingerprint_size);
+}
+
+template <typename T>
+const Bucket CuckooFilter<T>::get_bucket(const size_t index) const {
+  // yes this is cheating around not being able to create a Bucket with const
+  // iterators, but should work because we return a const bucket
+  auto& data_noconst = const_cast<std::vector<uint8_t>&>(m_data);
+  return Bucket(
+    std::next(data_noconst.begin(), index * m_bucket_size * m_fingerprint_size),
+    std::next(data_noconst.begin(),
+              (index + 1) * m_bucket_size * m_fingerprint_size),
+    m_fingerprint_size);
+}
+
+template <typename T>
 inline bool CuckooFilter<T>::insert(const T item) {
   size_t index;
   size_t alt_index;
@@ -176,7 +180,7 @@ inline bool CuckooFilter<T>::insert(const T item) {
 
   // TODO: insert two times the same value?
 
-  size_t index_to_insert = index_dis(gen) ? index : alt_index;
+  size_t index_to_insert = index_dis(*gen) ? index : alt_index;
   bool inserted = get_bucket(index_to_insert).insert(fingerprint);
   if (inserted) {
     m_size++;
@@ -191,7 +195,7 @@ inline bool CuckooFilter<T>::insert(const T item) {
       m_size++;
       return true;
     } else {
-      size_t fingerprint_to_relocate = bucket_dis(gen);
+      size_t fingerprint_to_relocate = bucket_dis(*gen);
       bucket.swap(fingerprint, fingerprint_to_relocate);
 
       index_to_insert = get_alt_index(index_to_insert, fingerprint);
