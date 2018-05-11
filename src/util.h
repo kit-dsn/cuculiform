@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "highwayhash/highwayhash.h"
+#include "city.h"
 
 namespace cuculiform {
 
@@ -40,7 +41,7 @@ inline std::vector<uint8_t> into_bytes(uint32_t linear, size_t num_bytes) {
   return vec;
 }
 
-// implements the required strong hash function signature
+// implements the required hash function signature
 // for CuckooFilter using HighwayHash
 inline uint64_t highwayhash(size_t value) {
   using namespace highwayhash;
@@ -55,6 +56,17 @@ inline uint64_t highwayhash(size_t value) {
   HHStateT<HH_TARGET> state(key);
   HighwayHashT(&state, bytes, sizeof(bytes), &result);
   return static_cast<uint64_t>(result);
+}
+
+// implements the required hash function signature
+// for CuckooFilter using HighwayHash
+inline uint64_t cityhash(size_t value) {
+  char bytes[sizeof(value)];
+  for (size_t i = 0; i < sizeof(value); i++) {
+    bytes[i] = static_cast<uint8_t>((value >> i * 8) & 0xFF);
+  }
+
+  return CityHash64(bytes, sizeof(bytes));
 }
 
 #pragma GCC diagnostic push
