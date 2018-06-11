@@ -145,7 +145,7 @@ TEST_CASE("false positive test", "[cuculiform]") {
             << (num_insertions - failed_rebucketing)
                  / static_cast<double>(capacity)
             << " of capacity" << std::endl;
-  std::cout << "false positive rate: " << false_positive_rate << "%"
+  std::cout << "false positive rat: " << false_positive_rate
             << std::endl;
 
   // ratio should be around 0.024, round up to 0.03
