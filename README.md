@@ -17,8 +17,16 @@ but the hash function is interchangeable.
 ```bash
 git clone https://git.scc.kit.edu/dsn-projects/nsm/cuculiform.git
 git clone https://github.com/google/highwayhash.git
+git clone https://github.com/google/cityhash.git
+
 cd highwayhash
 make -j$(nproc)
+
+cd ../cityhash
+./configure --prefix="$(pwd)" --with-pic
+make all check CXXFLAGS="-g -O3"
+make install
+
 cd ../cuculiform
 mkdir build
 cd build
