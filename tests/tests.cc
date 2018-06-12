@@ -10,6 +10,8 @@
 
 #include <chrono>
 #include <ctime>
+#include <random>
+#include <unordered_set>
 
 TEST_CASE("create cuckoofilter", "[cuculiform]") {
   size_t capacity = 1024;
@@ -117,6 +119,8 @@ TEST_CASE("false positive test", "[cuculiform]") {
     std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
   double time_per_contain = (static_cast<double>(elapsed_time) * 1000.0)
                             / static_cast<double>(queries);
+  std::cout << std::endl;
+  std::cout << "### false positive test results ###" << std::endl;
   std::cout << "elapsed time: " << elapsed_time << "ms\n";
   std::cout << "time per contain operation: " << time_per_contain << "μs\n";
 
@@ -145,10 +149,94 @@ TEST_CASE("false positive test", "[cuculiform]") {
             << (num_insertions - failed_rebucketing)
                  / static_cast<double>(capacity)
             << " of capacity" << std::endl;
-  std::cout << "false positive rate: " << false_positive_rate << "%"
+  std::cout << "false positive ratio: " << false_positive_rate
             << std::endl;
 
   // ratio should be around 0.024, round up to 0.03
   // to accomodate for random fluctuation
   REQUIRE(false_positive_rate < 0.03);
+}
+
+// add 100 elements random elements from the range [0, 10000] to a filter with a capacity of 1024,
+// check the full range, and calculate false positives.
+TEST_CASE("inteligence data test", "[cuculiform]") {
+  size_t capacity = 1024;
+  size_t fingerprint_size = 1;
+  size_t to_insert = 100;
+  size_t range = 10000;
+  // needs about 2000 runs to calculate a good-enough standard deviation
+  size_t runs = 2000;
+
+  std::random_device rd;
+  auto seed = rd();
+  auto gen = std::mt19937(seed);
+  auto dis = std::uniform_int_distribution<size_t>(0, range);
+
+  auto false_positive_rates = std::vector<double>(runs);
+
+  for (size_t run = 0; run < runs; run++) {
+    cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size, 500,
+      cuculiform::TwoIndependentMultiplyShift{}};
+    auto elements = std::unordered_set<size_t>(to_insert);
+
+    // TODO: should we skip runs where we fail to rebucket?
+    bool failed_rebucketing = false;
+    for (size_t i = 0; i < to_insert; i++) {
+      size_t element;
+      do {
+        element = dis(gen);
+      } while (elements.find(element) != elements.end());
+
+      elements.insert(element);
+      if (!filter.insert(element)) {
+        // NOTE: Although insert returns false, the item is inserted but another
+        //       one has been kicked out due to the relocation process.
+        std::cerr << "could not relocate when inserting element number " << i << std::endl;
+        break;
+      }
+    }
+
+    size_t false_queries = 0;
+    size_t queries = range;
+
+    for (size_t i = 0; i < range; i++) {
+      if (filter.contains(i) && (elements.find(i) == elements.end())) {
+        false_queries += 1;
+      }
+    }
+
+    double false_positive_rate =
+      static_cast<double>(false_queries) / static_cast<double>(queries);
+    false_positive_rates.push_back(false_positive_rate);
+  }
+
+  double sum = std::accumulate(false_positive_rates.begin(), false_positive_rates.end(), 0.0);
+  double mean = sum / false_positive_rates.size();
+
+  auto minmax = std::minmax_element(false_positive_rates.begin(), false_positive_rates.end());
+  double min = *minmax.first;
+  double max = *minmax.second;
+
+  double sq_sum = 0;
+  for (auto rate : false_positive_rates) {
+    sq_sum += (rate - mean) * (rate - mean);
+  }
+  double st_dev = std::sqrt(sq_sum / false_positive_rates.size());
+  double variation_coeff = st_dev / mean * 100;
+
+  std::cout << std::endl;
+  std::cout << "### inteligence data test results ###" << std::endl;
+
+  // Use the user-preferred locale to get thousand separators in output
+  std::cout.imbue(std::locale(""));
+
+  std::cout << "false positive ratio average: " << mean
+            << " σ: " << st_dev << " (" << variation_coeff << "%)"
+            << " max: " << max
+            << " min: " << min
+            << std::endl;
+
+
+  // 10k runs: false positive ratio average: 0,00300382 σ: 0,00469904 (156,4%) max: 0,1825 min: 0,0003
+  REQUIRE(mean < 0.0040);
 }
