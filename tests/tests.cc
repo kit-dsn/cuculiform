@@ -159,7 +159,7 @@ TEST_CASE("false positive test", "[cuculiform]") {
 
 // add 100 elements random elements from the range [0, 10000] to a filter with a capacity of 1024,
 // check the full range, and calculate false positives.
-TEST_CASE("inteligence data test", "[cuculiform]") {
+TEST_CASE("intelligence data test", "[cuculiform]") {
   size_t capacity = 1024;
   size_t fingerprint_size = 1;
   size_t to_insert = 100;
@@ -207,7 +207,7 @@ TEST_CASE("inteligence data test", "[cuculiform]") {
 
     double false_positive_rate =
       static_cast<double>(false_queries) / static_cast<double>(queries);
-    false_positive_rates.push_back(false_positive_rate);
+    false_positive_rates[run] = false_positive_rate;
   }
 
   double sum = std::accumulate(false_positive_rates.begin(), false_positive_rates.end(), 0.0);
@@ -225,7 +225,7 @@ TEST_CASE("inteligence data test", "[cuculiform]") {
   double variation_coeff = st_dev / mean * 100;
 
   std::cout << std::endl;
-  std::cout << "### inteligence data test results ###" << std::endl;
+  std::cout << "### intelligence data test results ###" << std::endl;
 
   // Use the user-preferred locale to get thousand separators in output
   std::cout.imbue(std::locale(""));
