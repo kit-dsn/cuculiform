@@ -43,31 +43,47 @@ inline std::vector<uint8_t> into_bytes(uint32_t linear, size_t num_bytes) {
 
 // implements the required hash function signature
 // for CuckooFilter using HighwayHash
-inline uint64_t highwayhash(size_t value) {
-  using namespace highwayhash;
+class HighwayHash {
+public:
+  HighwayHash() {}
 
-  char bytes[sizeof(value)];
-  for (size_t i = 0; i < sizeof(value); i++) {
-    bytes[i] = static_cast<uint8_t>((value >> i * 8) & 0xFF);
+  uint64_t operator()(size_t value) const {
+    using namespace highwayhash;
+
+    char bytes[sizeof(value)];
+    for (size_t i = 0; i < sizeof(value); i++) {
+      bytes[i] = static_cast<uint8_t>((value >> i * 8) & 0xFF);
+    }
+
+    const HHKey key HH_ALIGNAS(32) = {1, 2, 3, 4};
+    HHResult64 result;
+    HHStateT<HH_TARGET> state(key);
+    HighwayHashT(&state, bytes, sizeof(bytes), &result);
+    return static_cast<uint64_t>(result);
   }
-
-  const HHKey key HH_ALIGNAS(32) = {1, 2, 3, 4};
-  HHResult64 result;
-  HHStateT<HH_TARGET> state(key);
-  HighwayHashT(&state, bytes, sizeof(bytes), &result);
-  return static_cast<uint64_t>(result);
-}
+};
 
 // implements the required hash function signature
-// for CuckooFilter using HighwayHash
-inline uint64_t cityhash(size_t value) {
-  char bytes[sizeof(value)];
-  for (size_t i = 0; i < sizeof(value); i++) {
-    bytes[i] = static_cast<uint8_t>((value >> i * 8) & 0xFF);
-  }
+// for CuckooFilter using CityHash
+class CityHash {
+  uint64_t seed;
 
-  return CityHash64(bytes, sizeof(bytes));
-}
+public:
+  CityHash() : seed(0) {}
+  CityHash(uint64_t seed) : seed(seed) {}
+
+  uint64_t operator()(size_t value) const {
+    char bytes[sizeof(value)];
+    for (size_t i = 0; i < sizeof(value); i++) {
+      bytes[i] = static_cast<uint8_t>((value >> i * 8) & 0xFF);
+    }
+
+    if(seed != 0){
+      return CityHash64WithSeed(bytes, sizeof(bytes), seed);
+    }else
+      return CityHash64(bytes, sizeof(bytes));
+  }
+};
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
