@@ -18,15 +18,15 @@ namespace cuculiform {
 template <typename T>
 class CuckooFilter {
 public:
-  explicit CuckooFilter(size_t capacity, size_t fingerprint_size,
-                        uint max_relocations = 500,
-                        std::function<uint64_t(size_t)> cuckoo_hash_fn =
-                          cuculiform::TwoIndependentMultiplyShift{},
-                        std::function<uint64_t(size_t)> fingerprint_hash_fn =
-                          cuculiform::TwoIndependentMultiplyShift{})
+  explicit CuckooFilter(
+    size_t capacity, size_t fingerprint_size, uint max_relocations = 500,
+    size_t bucket_size = 4,
+    std::function<uint64_t(size_t)> cuckoo_hash_fn = cuculiform::CityHash{},
+    std::function<uint64_t(size_t)> fingerprint_hash_fn =
+      cuculiform::CityHash{})
       : m_size(0),
         m_capacity(capacity),
-        m_bucket_size(4),
+        m_bucket_size(bucket_size),
         // for partial hashing to work, i.e. not generate invalid bucket
         // indexes.
         m_bucket_count(ceil_to_power_of_two(m_capacity / m_bucket_size)),

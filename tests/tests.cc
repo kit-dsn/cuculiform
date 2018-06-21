@@ -59,7 +59,7 @@ TEST_CASE("string cuckoofilter", "[cuculiform]") {
 
 TEST_CASE("false positive test", "[cuculiform]") {
   size_t capacity = 1 << 20;
-  size_t fingerprint_size = 2;
+  size_t fingerprint_size = 1;
   /* cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size, 500,
    * cuculiform::TwoIndependentMultiplyShift{}}; */
   cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size};
@@ -175,7 +175,7 @@ TEST_CASE("intelligence data test", "[cuculiform]") {
   auto false_positive_rates = std::vector<double>(runs);
 
   for (size_t run = 0; run < runs; run++) {
-    cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size, 500,
+    cuculiform::CuckooFilter<uint64_t> filter{capacity, fingerprint_size, 500, 4,
       cuculiform::TwoIndependentMultiplyShift{}};
     auto elements = std::unordered_set<size_t>(to_insert);
 
